@@ -8,6 +8,19 @@
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
 
+typedef struct {
+    int x, y, width, height;
+} Rectangle;
+
+typedef struct{
+    int x, y;
+} StartingCoordinates;
+
+void moveRectangle(Rectangle* rect, int deltaX, int deltaY){
+    rect->x += deltaY;
+    rect->y += deltaX;
+}
+
 int main() {
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -47,38 +60,41 @@ int main() {
     }
     SDL_SetRenderDrawColor(renderer, 255,255,255,255);
 
+    Rectangle player = {100, 100, 20,20};
 
-    SDL_Event e;
+    SDL_Event event;
     int quit = 0;
     
-    // Main loop
+    // Main Loop for SDL Events
     while (!quit) {
-        while (SDL_PollEvent(&e) != 0) {
-            if (e.type == SDL_QUIT) {
+        while (SDL_PollEvent(&event) != 0) {
+            if (event.type == SDL_QUIT) {
                 quit = 1;
+            }else if (event.type == SDL_KEYDOWN) {
+                switch (event.key.keysym.sym) {
+                    case SDLK_UP:
+                        moveRectangle(&player, -10, 0);
+                        break;
+                    case SDLK_DOWN:
+                        moveRectangle(&player, 10, 0);
+                        break;
+                    case SDLK_LEFT:
+                        moveRectangle(&player, 0, -10);
+                        break;
+                    case SDLK_RIGHT:
+                        moveRectangle(&player, 0, 10);
+                        break;
+                }
             }
         }
         int x, y;
 
-        // Receive coordinates from the server
-        if (recv(clientSocket, &x, sizeof(int), 0) <= 0 ||
-            recv(clientSocket, &y, sizeof(int), 0) <= 0) {
-            perror("Error receiving coordinates from server");
-            break;
-        }
-
-        printf("X Coordinate: %d\n", x);
-        printf("Y Coordinate: %d\n", y);
-
         int squareSize = 20;
-        SDL_Rect rect = { x - squareSize / 2, y - squareSize / 2, squareSize, squareSize };
+        SDL_Rect rect = { player.x, player.y, player.width, player.height};
+
+
         SDL_RenderFillRect(renderer, &rect);
-
-        // Present the renderer
         SDL_RenderPresent(renderer);
-
-        // Handle SDL events if needed...
-
         SDL_Delay(100);
     }
 
@@ -95,10 +111,3 @@ int main() {
     return 0;
 }
 
-        // // Clear the screen
-        // SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        // SDL_RenderClear(renderer);
-
-        // Draw a pixel at the received coordinates
-        // SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-        // SDL_RenderDrawPoint(renderer, x, y);

@@ -46,17 +46,16 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    int x = rand() % WINDOW_WIDTH;
+    int y = rand() % WINDOW_HEIGHT;
+
+    // Send coordinates to the client
+    send(clientSocket, &x, sizeof(int), 0);
+    send(clientSocket, &y, sizeof(int), 0);
     // Main loop
+
     while (1) {
-        int x = rand() % WINDOW_WIDTH;
-        int y = rand() % WINDOW_HEIGHT;
-
-        // Send coordinates to the client
-        send(clientSocket, &x, sizeof(int), 0);
-        send(clientSocket, &y, sizeof(int), 0);
-
-        // Delay for a short time
-        usleep(100000); 
+        
     }
 
     // Clean up and close sockets
