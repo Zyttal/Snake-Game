@@ -39,27 +39,25 @@ int main() {
     }
 
     // Accept a client connection
-    int clientSocket = accept(serverSocket, NULL, NULL);
-    if (clientSocket == -1) {
-        perror("Error accepting client connection");
-        close(serverSocket);
-        exit(EXIT_FAILURE);
-    }
-
-    int x = rand() % WINDOW_WIDTH;
-    int y = rand() % WINDOW_HEIGHT;
-
-    // Send coordinates to the client
-    send(clientSocket, &x, sizeof(int), 0);
-    send(clientSocket, &y, sizeof(int), 0);
+    
     // Main loop
-
     while (1) {
-        
+        int clientSocket = accept(serverSocket, NULL, NULL);
+        if (clientSocket == -1) {
+            perror("Error accepting client connection");
+            close(serverSocket);
+            exit(EXIT_FAILURE);
+        }
+
+        int x = rand() % WINDOW_WIDTH;
+        int y = rand() % WINDOW_HEIGHT;
+
+        // Send coordinates to the client
+        send(clientSocket, &x, sizeof(int), 0);
+        send(clientSocket, &y, sizeof(int), 0);
     }
 
     // Clean up and close sockets
-    close(clientSocket);
     close(serverSocket);
 
     return 0;
