@@ -7,14 +7,11 @@
 #define PORT 58920
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
+#define MAX_CLIENTS 4
 
 typedef struct {
     int x, y, width, height;
 } Rectangle;
-
-typedef struct{
-    int x, y;
-} StartingCoordinates;
 
 typedef struct{
     int deltaX, deltaY;
@@ -69,6 +66,8 @@ int main() {
         return EXIT_FAILURE;
     }
 
+    int otherPlayerPositions[MAX_CLIENTS][2];
+
     // get the initial position from server
     int startX, startY;
     recv(clientSocket, &startX, sizeof(int), 0);
@@ -110,6 +109,9 @@ int main() {
         // Clear the Screen
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
+
+        send(clientSocket, &player.x, sizeof(int), 0);
+        send(clientSocket, &player.y, sizeof(int), 0);
 
         // Move and render the Rectangle
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
