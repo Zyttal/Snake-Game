@@ -11,19 +11,26 @@
 #define WINDOW_HEIGHT 900
 #define MAX_CLIENTS 4
 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+int playerPositions[MAX_CLIENTS][2]; 
+int connectedPlayers[MAX_CLIENTS]; // A Flag for checking if a player really did connect
+
 typedef struct{
     int clientSocket;
     int playerID;
 } ClientInfo;
 
 void *clientHandler(void *arg) {
-    int clientSocket = *((int *)arg);
+    ClientInfo *clientInfo = (ClientInfo *)arg;
+    int clientSocket = clientInfo->clientSocket;
+    int playerID = clientInfo->playerID;
     free(arg);
 
     int x = rand() % WINDOW_WIDTH;
     int y = rand() % WINDOW_HEIGHT;
 
     // Send starting coordinates to the client
+    send(clientSocket, &playerID, sizeof(int), 0);
     send(clientSocket, &x, sizeof(int), 0);
     send(clientSocket, &y, sizeof(int), 0);
 
@@ -34,12 +41,27 @@ void *clientHandler(void *arg) {
         int bytesReceivedY = recv(clientSocket, &deltaY, sizeof(int), 0);
 
         if (bytesReceivedX <= 0 || bytesReceivedY <= 0) {
-            printf("Client disconnected\n");
+            printf("Player %d has disconnected\n", playerID);
             break;
         }
 
-        // printf("X: %d Y: %d\n", deltaX, deltaY);
+        printf("Player %d - X: %d Y: %d\n", playerID, deltaX, deltaY);
         // Handle player movements here and update player positions if needed
+
+        pthread_mutex_lock(&mutex); // Lock mutex before accessing shared data (playerPositions)
+        playerPositions[playerID - 1][0] = deltaX;
+        playerPositions[playerID - 1][1] = deltaY;
+
+        // Broadcast updated positions to all clients
+        for (int i = 0; i < MAX_CLIENTS; ++i) {
+            if (i != playerID - 1 && playerPositions[i][0] != -1 && playerPositions[i][1] != -1) {
+                int playerID = i + 1;
+                send(clientSocket, &playerID, sizeof(int), 0);
+                send(clientSocket, &playerPositions[i][0], sizeof(int), 0);
+                send(clientSocket, &playerPositions[i][1], sizeof(int), 0);
+            }
+        }
+        pthread_mutex_unlock(&mutex); // Unlock mutex after updating shared data
     }
 
     // Close client socket after handling movements or disconnection
@@ -79,9 +101,9 @@ int main() {
     int playerPositions[MAX_CLIENTS][2];
     int playerMovements[MAX_CLIENTS][2];
 
-
     // player ID Counter
     int playerID = 1;
+    memset(playerPositions, -1, sizeof(playerPositions));
 
     while (1) {
         if (playerID <= MAX_CLIENTS) {

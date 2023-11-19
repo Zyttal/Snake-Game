@@ -1,8 +1,9 @@
-#include <SDL2/SDL.h>
+#include <SDL2/SDL.h> // Version 2.0.20 was used in the development
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #define PORT 58920
 #define WINDOW_WIDTH 1500
@@ -11,11 +12,18 @@
 
 typedef struct {
     int x, y, width, height;
-} Rectangle;
+} Rectangle; // Set for current Client
+
+typedef struct{
+    int x, y, width, height;
+} OtherRectangle; // Set for the positions of other players
 
 typedef struct{
     int deltaX, deltaY;
 } Movement;
+
+OtherRectangle otherPlayers[MAX_CLIENTS]; // An array of Rectangles that represent the players
+int playerID;
 
 void moveRectangle(Rectangle* rect, int deltaX, int deltaY){
     if (rect->x + deltaY >= 0 && rect->x + deltaY + rect->width <= WINDOW_WIDTH) {
@@ -24,6 +32,35 @@ void moveRectangle(Rectangle* rect, int deltaX, int deltaY){
     if (rect->y + deltaX >= 0 && rect->y + deltaX + rect->height <= WINDOW_HEIGHT) {
         rect->y += deltaX;
     }
+}
+
+void *receiveThread(void *arg) {
+    int clientSocket = *((int *)arg);
+    while (1) {
+        int receivedPlayerID = 0, receivedX = 0 , receivedY = 0;
+        recv(clientSocket, &receivedPlayerID, sizeof(int), 0);
+        recv(clientSocket, &receivedX, sizeof(int), 0);
+        recv(clientSocket, &receivedY, sizeof(int), 0);
+
+        // Update other player's positions or handle the data received here...
+        if (receivedPlayerID != playerID && 
+        receivedX != -1 && 
+        receivedY != -1 &&
+        receivedX != 0 && 
+        receivedY != 0) {
+            // Update other player's positions
+            otherPlayers[receivedPlayerID - 1].x = receivedX;
+            otherPlayers[receivedPlayerID - 1].y = receivedY;
+            otherPlayers[receivedPlayerID - 1].width = 20;
+            otherPlayers[receivedPlayerID - 1].height = 20;
+            printf("Player %d - X: %d Y: %d\n", receivedPlayerID, receivedX, receivedY);
+        } else if (receivedX == -1 && receivedY == -1) {
+            // Player disconnect handling
+            otherPlayers[receivedPlayerID - 1].x = -1;
+            otherPlayers[receivedPlayerID - 1].y = -1;
+        }
+    }
+    return NULL;
 }
 
 int main() {
@@ -66,16 +103,25 @@ int main() {
         return EXIT_FAILURE;
     }
 
+    // Create a thread for receiving data from the server
+    pthread_t recvThread;
+    if (pthread_create(&recvThread, NULL, receiveThread, &clientSocket) != 0) {
+        perror("Error creating receive thread");
+        close(clientSocket);
+        exit(EXIT_FAILURE);
+    }
+
     int otherPlayerPositions[MAX_CLIENTS][2];
 
-    // get the initial position from server
+    // get PlayerID and initial position from server
     int startX, startY;
+    recv(clientSocket, &playerID, sizeof(int), 0);
     recv(clientSocket, &startX, sizeof(int), 0);
     recv(clientSocket, &startY, sizeof(int), 0);
-    Rectangle player = {startX, startY, 20,20};
-    // Set the initial direction of the player
-    Movement playerDirection = {0, 10};
 
+    // Initialize Current player's rectangle and set Directions
+    Rectangle player = {startX, startY, 20,20};
+    Movement playerDirection = {0, 20};
 
     SDL_Event event;
     int quit = 0;
@@ -87,25 +133,27 @@ int main() {
             }else if (event.type == SDL_KEYDOWN) {
                 switch (event.key.keysym.sym) {
                     case SDLK_UP:
-                        playerDirection.deltaX = -10;
+                        playerDirection.deltaX = -20;
                         playerDirection.deltaY = 0;
                         break;
                     case SDLK_DOWN:
-                        playerDirection.deltaX = 10;
+                        playerDirection.deltaX = 20;
                         playerDirection.deltaY = 0;
                         break;
                     case SDLK_LEFT:
                         playerDirection.deltaX = 0;
-                        playerDirection.deltaY = -10;
+                        playerDirection.deltaY = -20;
                         break;
                     case SDLK_RIGHT:
                         playerDirection.deltaX = 0;
-                        playerDirection.deltaY = 10;
+                        playerDirection.deltaY = 20;
                         break;
                 }
             }
         }
+
         moveRectangle(&player, playerDirection.deltaX, playerDirection.deltaY);
+
         // Clear the Screen
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
@@ -113,10 +161,23 @@ int main() {
         send(clientSocket, &player.x, sizeof(int), 0);
         send(clientSocket, &player.y, sizeof(int), 0);
 
-        // Move and render the Rectangle
+        // Move and render the current Players Rectangle
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_Rect rect = { player.x, player.y, player.width, player.height};
         SDL_RenderFillRect(renderer, &rect);
+
+        for (int i = 0; i < MAX_CLIENTS; ++i) {
+            if (otherPlayers[i].x != -1 && otherPlayers[i].y != -1) {
+                SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Set color for other players
+                SDL_Rect otherRect = {
+                    otherPlayers[i].x,
+                    otherPlayers[i].y,
+                    otherPlayers[i].width,
+                    otherPlayers[i].height
+                };
+                SDL_RenderFillRect(renderer, &otherRect);
+            }
+        }
         
         // Updates the Screen
         SDL_RenderPresent(renderer);
@@ -134,4 +195,3 @@ int main() {
 
     return 0;
 }
-
