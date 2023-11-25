@@ -7,10 +7,10 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58932
+#define PORT 58930
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
-#define MAX_CLIENTS 4
+#define MAX_CLIENTS 5
 #define MAX_SNAKE_LENGTH 50
 
 #define MIN_X 0
@@ -69,6 +69,9 @@ int main() {
     Snake playerSnake;
     SDL_Event event;
 
+    int coordsDeathX;
+    int coordsDeathY;
+
     initConnection();
     initSDL();
     initSDL_ttf();
@@ -91,6 +94,9 @@ int main() {
 
         if(playerSnake.isAlive){
             moveSnake(&playerSnake, playerDirection);
+        }else{
+            coordsDeathX = playerSnake.head.x;
+            coordsDeathY = playerSnake.head.y;
         }
 
         send(clientSocket, &playerID, sizeof(int), 0);
@@ -103,6 +109,7 @@ int main() {
         
     }
     
+    printf("%d : %d\n", coordsDeathX, coordsDeathY);
     close(clientSocket);
 
     return 0;
@@ -246,6 +253,14 @@ void moveSnake(Snake *snake, Movement movement) {
 
     if (snake->isAlive) {
         for (int i = 0; i < MAX_CLIENTS; ++i) {
+            // Check if Snake collides with itself
+            for(int j = 0; j < snake->body_length; ++j){
+                if(snake->head.x == snake->body[j].x &&
+                snake->head.y == snake->body[j].y){
+                    snake->isAlive = 0;
+                    break;
+                }
+            }
 
             // Check collision with other snakes' heads
             if (otherPlayers[i].isAlive &&

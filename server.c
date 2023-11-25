@@ -6,10 +6,10 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58932
+#define PORT 58930
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
-#define MAX_CLIENTS 4
+#define MAX_CLIENTS 5
 #define MAX_SNAKE_LENGTH 50
 
 #define MIN_X 0
@@ -65,7 +65,7 @@ int main() {
     int playerID = 1;
 
     while (1) {
-        if (playerID <= MAX_CLIENTS) {
+        if (playerID < MAX_CLIENTS) {
             // Accept a client connection
             int *clientSocket = malloc(sizeof(int));
             *clientSocket = accept(serverSocket, NULL, NULL);
@@ -144,7 +144,7 @@ void *playerHandler(void *arg) {
 
         // Handle disconnection or error
         if (bytesReceived <= 0) {
-            printf("Player %d disconnected\n", playerID);
+            printf("Player %d disconnected.\n", playerID);
             pthread_mutex_lock(&mutex);
             players[playerID - 1].active = 0;
             pthread_mutex_unlock(&mutex);
@@ -152,7 +152,7 @@ void *playerHandler(void *arg) {
         }
 
         if (!(receivedSnake.isAlive) && deathFlag == 0){
-            printf("Player %d died\n", playerID);
+            printf("Player %d Died.\n", playerID);
             deathFlag = 1;
         }
 
