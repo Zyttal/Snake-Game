@@ -3,6 +3,8 @@
     "files.associations": {
         "*.html": "html",
         "*.py": "python",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "inet.h": "c",
+        "pthread.h": "c"
     }
 }

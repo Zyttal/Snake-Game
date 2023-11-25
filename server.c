@@ -1,4 +1,4 @@
-#include <SDL2/SDL.h>
+// #include <SDL2/SDL.h> // To add - Server as a Spectator
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,11 +6,11 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58901
+#define PORT 58932
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
 #define MAX_CLIENTS 4
-#define MAX_SNAKE_LENGTH 21
+#define MAX_SNAKE_LENGTH 50
 
 #define MIN_X 0
 #define MAX_X (WINDOW_WIDTH - 20) // Adjusted for the snake's head size
@@ -60,7 +60,7 @@ void broadcastSnakes(int senderID, Snake* playerSnake);
 
 int main() {
     startServer();
-
+    
     // player ID Counter
     int playerID = 1;
 
@@ -108,7 +108,6 @@ int main() {
     }
 
     // Clean up and close sockets
-    
     close(serverSocket);
 
     return 0;
@@ -157,7 +156,6 @@ void *playerHandler(void *arg) {
             deathFlag = 1;
         }
 
-
         // Update the server's representation of the client's snake
         pthread_mutex_lock(&mutex);
         players[playerID - 1].playerSnake = receivedSnake;
@@ -173,7 +171,7 @@ void *playerHandler(void *arg) {
 }
 
 void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMovement){
-    playerSnake->body_length = 5;
+    playerSnake->body_length = 40;
     playerSnake->isAlive = 1;
     switch (playerInfo->playerID) {
         case 1: // Top-left
@@ -234,13 +232,10 @@ void *inputHandler(void *arg) {
         fgets(input, sizeof(input), stdin);
         if (strcmp(input, "quit\n") == 0) {
             printf("Server shutting down...\n");
-            int reuse = 1;
-            if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int)) == -1) {
-                perror("Setting socket option failed");
-                exit(EXIT_FAILURE);
-            }
+            close(serverSocket);
             exit(EXIT_SUCCESS);
         }
+        
     }
     return NULL;
 }

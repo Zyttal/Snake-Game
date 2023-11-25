@@ -7,11 +7,11 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58901
+#define PORT 58932
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
 #define MAX_CLIENTS 4
-#define MAX_SNAKE_LENGTH 21
+#define MAX_SNAKE_LENGTH 50
 
 #define MIN_X 0
 #define MAX_X (WINDOW_WIDTH - 20) // Adjusted for the snake's head size
@@ -43,6 +43,10 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 // SDL Variables
 SDL_Renderer* renderer;
 SDL_Window* window;
+TTF_Font* font;
+
+SDL_Surface* textSurface;
+SDL_Texture* textTexture;
 
 // Function Prototypes
 void *receiveThread(void *arg); // For receiving Broadcasted Snake Positions
@@ -51,8 +55,9 @@ void handlePlayerInput(SDL_Event *event, Movement *playerDirection, int *quit, M
 void initPlayerSnake(Snake *playerSnake, Movement *playerDirection);
 void initConnection();
 
-// SDL Functions
+// SDL Function Prototypes
 int initSDL();
+void initSDL_ttf();
 void renderAssets(SDL_Renderer* renderer, Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers);
 void *receiveThread(void *arg);
 void showDeathMessage();
@@ -66,6 +71,8 @@ int main() {
 
     initConnection();
     initSDL();
+    initSDL_ttf();
+
     initPlayerSnake(&playerSnake, &playerDirection);
 
     // Create a thread for receiving data from the server
@@ -120,6 +127,39 @@ int initSDL(){
         SDL_DestroyWindow(window);
         SDL_Quit();
         return EXIT_FAILURE;
+    }
+}
+
+void initSDL_ttf(){
+    SDL_Color textColor = { 255, 255, 255 };
+    
+    if (TTF_Init() == -1) {
+        fprintf(stderr, "TTF_Init error: %s\n", TTF_GetError());
+        return;
+    }
+
+    font = TTF_OpenFont("fonts/LiberationSans-Regular.ttf", 24); // Try "LiberationSans-Regular.ttf" if "DejaVuSans" is not available
+    if (font == NULL) {
+        fprintf(stderr, "Error loading font: %s\n", TTF_GetError());
+        TTF_Quit();
+        return;
+    }
+
+    textSurface = TTF_RenderText_Solid(font, "You Died!", textColor);
+    if (textSurface == NULL) {
+        fprintf(stderr, "Error creating text surface: %s\n", TTF_GetError());
+        TTF_CloseFont(font);
+        TTF_Quit();
+        return;
+    }
+
+    textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    if (textTexture == NULL) {
+        fprintf(stderr, "Error creating text texture: %s\n", SDL_GetError());
+        SDL_FreeSurface(textSurface);
+        TTF_CloseFont(font);
+        TTF_Quit();
+        return;
     }
 }
 
@@ -206,10 +246,6 @@ void moveSnake(Snake *snake, Movement movement) {
 
     if (snake->isAlive) {
         for (int i = 0; i < MAX_CLIENTS; ++i) {
-            // Skip self-collision check
-            if (i + 1 == playerID) {
-                continue;
-            }
 
             // Check collision with other snakes' heads
             if (otherPlayers[i].isAlive &&
@@ -222,9 +258,10 @@ void moveSnake(Snake *snake, Movement movement) {
             // Check collision with other snakes' bodies
             for (int j = 0; j < otherPlayers[i].body_length; ++j) {
                 if (snake->head.x == otherPlayers[i].body[j].x &&
-                    snake->head.y == otherPlayers[i].body[j].y) {
+                    snake->head.y == otherPlayers[i].body[j].y &&
+                    otherPlayers[i].isAlive) {
                     snake->isAlive = 0;
-                    break; // No need to check further
+                    break; 
                 }
             }
 
@@ -303,37 +340,6 @@ void initConnection(){
 }
 
 void showDeathMessage() {
-    SDL_Color textColor = { 255, 255, 255 };
-    
-    if (TTF_Init() == -1) {
-        fprintf(stderr, "TTF_Init error: %s\n", TTF_GetError());
-        return;
-    }
-
-    TTF_Font* font = TTF_OpenFont("fonts/LiberationSans-Regular.ttf", 24); // Try "LiberationSans-Regular.ttf" if "DejaVuSans" is not available
-    if (font == NULL) {
-        fprintf(stderr, "Error loading font: %s\n", TTF_GetError());
-        TTF_Quit();
-        return;
-    }
-
-    SDL_Surface* textSurface = TTF_RenderText_Solid(font, "You Died!", textColor);
-    if (textSurface == NULL) {
-        fprintf(stderr, "Error creating text surface: %s\n", TTF_GetError());
-        TTF_CloseFont(font);
-        TTF_Quit();
-        return;
-    }
-
-    SDL_Texture* textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    if (textTexture == NULL) {
-        fprintf(stderr, "Error creating text texture: %s\n", SDL_GetError());
-        SDL_FreeSurface(textSurface);
-        TTF_CloseFont(font);
-        TTF_Quit();
-        return;
-    }
-
     int textWidth = textSurface->w;
     int textHeight = textSurface->h;
 
@@ -343,5 +349,4 @@ void showDeathMessage() {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Set background color
 
     SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
-    SDL_RenderPresent(renderer);
 }
