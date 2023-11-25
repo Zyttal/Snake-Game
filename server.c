@@ -6,7 +6,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58905
+#define PORT 58901
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
 #define MAX_CLIENTS 4
@@ -44,7 +44,7 @@ typedef struct {
     int playerID;
     Snake playerSnake;
     Movement playerMovement;
-    int active; // Indicates if the client is active or disconnected
+    int active;
 } PlayerData;
 
 // Global Variables/Arrays
@@ -91,10 +91,10 @@ int main() {
             pthread_detach(clientThread);
 
             // Display player connection
-            printf("Player %d connected\n", playerID);
+            printf("Player %d Connected\n", playerID);
             playerID++;
         } else {
-            // Accepts a socket but then it would be denied
+            // Accepts a socket then Denies Socket
             int *deniedSocket = malloc(sizeof(int));
             *deniedSocket = accept(serverSocket, NULL, NULL);
             if (*deniedSocket == -1) {
@@ -118,6 +118,7 @@ void *playerHandler(void *arg) {
     PlayerInfo *playerInfo = (PlayerInfo *)arg;
     int clientSocket = playerInfo->clientSocket;
     int playerID = playerInfo->playerID;
+    int deathFlag = 0;
 
     Snake playerSnake;
     Movement startingPosition;
@@ -150,6 +151,12 @@ void *playerHandler(void *arg) {
             pthread_mutex_unlock(&mutex);
             break; // Exit the loop on disconnection
         }
+
+        if (!(receivedSnake.isAlive) && deathFlag == 0){
+            printf("Player %d died\n", playerID);
+            deathFlag = 1;
+        }
+
 
         // Update the server's representation of the client's snake
         pthread_mutex_lock(&mutex);
