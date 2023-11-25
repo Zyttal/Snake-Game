@@ -4,7 +4,6 @@ This Snake game, crafted in C using the powerful SDL2 library, is a thrilling ta
 
 ## Features:
 
-- Cross-platform: Built specifically for Linux machines, providing a seamless gaming experience.
 - SDL2 Library: Leveraging the robust SDL2 library for enhanced graphics and smoother gameplay.
 - Work in Progress: Continuously evolving! Expect updates, improvements, and new features as the project advances.
 
