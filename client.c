@@ -5,67 +5,249 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58920
+#define PORT 58905
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
 #define MAX_CLIENTS 4
+#define MAX_SNAKE_LENGTH 21
+
+#define MIN_X 0
+#define MAX_X (WINDOW_WIDTH - 20) // Adjusted for the snake's head size
+#define MIN_Y 0
+#define MAX_Y (WINDOW_HEIGHT - 20) // Adjusted for the snake's head size
 
 typedef struct {
-    int x, y, width, height;
-} Rectangle; // Set for current Client
+    int x;
+    int y;
+} SnakeSegment;
 
-typedef struct{
-    int x, y, width, height;
-} OtherRectangle; // Set for the positions of other players
+typedef struct {
+    SnakeSegment head;
+    SnakeSegment body[MAX_SNAKE_LENGTH - 1]; // -1 for excluding head
+    int body_length;
+    int isAlive;
+} Snake;
 
 typedef struct{
     int deltaX, deltaY;
 } Movement;
 
-OtherRectangle otherPlayers[MAX_CLIENTS]; // An array of Rectangles that represent the players
+// Global Variables
+Snake otherPlayers[MAX_CLIENTS];
 int playerID;
+int clientSocket;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
-void moveRectangle(Rectangle* rect, int deltaX, int deltaY){
-    if (rect->x + deltaY >= 0 && rect->x + deltaY + rect->width <= WINDOW_WIDTH) {
-        rect->x += deltaY;
+// SDL Variables
+SDL_Renderer* renderer;
+SDL_Window* window;
+
+// Function Prototypes
+void *receiveThread(void *arg); // For receiving Broadcasted Snake Positions
+void moveSnake(Snake *snake, Movement movement);
+void handlePlayerInput(SDL_Event *event, Movement *playerDirection, int *quit, Movement *lastValidDirection, Snake *playerSnake);
+void initPlayerSnake(Snake *playerSnake, Movement *playerDirection);
+void initConnection();
+
+// SDL Functions
+int initSDL();
+void renderSnakes(SDL_Renderer* renderer, Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers);
+void *receiveThread(void *arg);
+
+int main() {
+    int numOtherPlayers = MAX_CLIENTS - 1;
+    int quit = 0;
+    Movement playerDirection;
+    Snake playerSnake;
+    SDL_Event event;
+
+    initConnection();
+    initSDL();
+    initPlayerSnake(&playerSnake, &playerDirection);
+
+    // Create a thread for receiving data from the server
+    pthread_t recvThread;
+    if (pthread_create(&recvThread, NULL, receiveThread, &clientSocket) != 0) {
+        perror("Error creating receive thread");
+        close(clientSocket);
+        exit(EXIT_FAILURE);
     }
-    if (rect->y + deltaX >= 0 && rect->y + deltaX + rect->height <= WINDOW_HEIGHT) {
-        rect->y += deltaX;
+    
+    // Main Loop for SDL Events
+    while (!quit) {
+        Movement lastValidDirection = playerDirection;
+        handlePlayerInput(&event, &playerDirection, &quit, &lastValidDirection, &playerSnake);
+        renderSnakes(renderer, &playerSnake, otherPlayers, numOtherPlayers);
+        // renderSnake(renderer, &playerSnake, 1);
+        if(playerSnake.isAlive){
+            moveSnake(&playerSnake, playerDirection);
+        }
+
+        send(clientSocket, &playerID, sizeof(int), 0);
+        send(clientSocket, &playerSnake, sizeof(Snake), 0);
+
+        renderSnakes(renderer, &playerSnake, otherPlayers, numOtherPlayers);
+        // renderSnake(renderer, &playerSnake, 1);
+        SDL_RenderPresent(renderer);
+        SDL_Delay(100);
+        
+    }
+    
+    close(clientSocket);
+
+    return 0;
+}
+
+int initSDL(){
+    // Initialize SDL and then Creates SDL window and renderer
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
+        return -1;
+    }
+    
+    window = SDL_CreateWindow("Snake Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    if (window == NULL) {
+        printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
+        return -1;
+    }
+    
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if(renderer == NULL){
+        printf("Render did not load! SDL_Error: %s\n", SDL_GetError());
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return EXIT_FAILURE;
     }
 }
 
-void *receiveThread(void *arg) {
-    int clientSocket = *((int *)arg);
-    while (1) {
-        int receivedPlayerID = 0, receivedX = 0 , receivedY = 0;
-        recv(clientSocket, &receivedPlayerID, sizeof(int), 0);
-        recv(clientSocket, &receivedX, sizeof(int), 0);
-        recv(clientSocket, &receivedY, sizeof(int), 0);
+void renderSnakes(SDL_Renderer* renderer, Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers) {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Set background color
+    SDL_RenderClear(renderer); // Clear the screen
 
-        // Update other player's positions or handle the data received here...
-        if (receivedPlayerID != playerID && 
-        receivedX != -1 && 
-        receivedY != -1 &&
-        receivedX != 0 && 
-        receivedY != 0) {
-            // Update other player's positions
-            otherPlayers[receivedPlayerID - 1].x = receivedX;
-            otherPlayers[receivedPlayerID - 1].y = receivedY;
-            otherPlayers[receivedPlayerID - 1].width = 20;
-            otherPlayers[receivedPlayerID - 1].height = 20;
-            printf("Player %d - X: %d Y: %d\n", receivedPlayerID, receivedX, receivedY);
-        } else if (receivedX == -1 && receivedY == -1) {
+    // Render the player's snake
+    if (playerSnake->isAlive) {
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_Rect headRect = { playerSnake->head.x, playerSnake->head.y, 20, 20 };
+        SDL_RenderFillRect(renderer, &headRect);
+        for (int i = 0; i < playerSnake->body_length; ++i) {
+            SDL_Rect bodyRect = { playerSnake->body[i].x, playerSnake->body[i].y, 20, 20 };
+            SDL_RenderFillRect(renderer, &bodyRect);
+        }
+    }
+    
+    // Render other players' snakes
+    for (int i = 0; i < numOtherPlayers; ++i) {
+        if(otherPlayers[i].isAlive){
+                if (otherPlayers[i].head.x != -1 && otherPlayers[i].head.y != -1 && otherPlayers[i].body_length > 0) {
+                SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); 
+                SDL_Rect otherHeadRect = { otherPlayers[i].head.x, otherPlayers[i].head.y, 20, 20 };
+                SDL_RenderFillRect(renderer, &otherHeadRect);
+                for (int j = 0; j < otherPlayers[i].body_length; ++j) {
+                    SDL_Rect otherBodyRect = { otherPlayers[i].body[j].x, otherPlayers[i].body[j].y, 20, 20 };
+                    SDL_RenderFillRect(renderer, &otherBodyRect);
+                }
+            }
+        }
+        
+    }
+
+    // Update the window
+    SDL_RenderPresent(renderer);
+}
+
+void *receiveThread(void *arg) {
+    int clientSocket = *((int *) arg);
+    while (1) {
+        int receivedPlayerID;
+        Snake receivedSnake;
+
+        recv(clientSocket, &receivedPlayerID, sizeof(int), 0);
+        recv(clientSocket, &receivedSnake, sizeof(Snake), 0);
+
+        if (receivedPlayerID != playerID){
+            otherPlayers[receivedPlayerID - 1].head.x = receivedSnake.head.x;
+            otherPlayers[receivedPlayerID - 1].head.y = receivedSnake.head.y;
+            otherPlayers[receivedPlayerID - 1].body_length = receivedSnake.body_length;
+            otherPlayers[receivedPlayerID - 1].isAlive = receivedSnake.isAlive;
+            for(int i = 0; i < otherPlayers[receivedPlayerID - 1].body_length; ++i){
+                otherPlayers[receivedPlayerID - 1].body[i].x = receivedSnake.body[i].x;
+                otherPlayers[receivedPlayerID - 1].body[i].y = receivedSnake.body[i].y;
+            }
+            
+        } else if (receivedSnake.head.x == -1 && receivedSnake.head.y == -1) {
             // Player disconnect handling
-            otherPlayers[receivedPlayerID - 1].x = -1;
-            otherPlayers[receivedPlayerID - 1].y = -1;
+            otherPlayers[receivedPlayerID - 1].head.x = -1;
+            otherPlayers[receivedPlayerID - 1].head.y = -1;
+            otherPlayers[receivedPlayerID - 1].body_length = 0;
         }
     }
     return NULL;
 }
 
-int main() {
+void moveSnake(Snake *snake, Movement movement) {
+    // Move the body segments
+    for (int i = snake->body_length - 1; i > 0; --i) {
+        snake->body[i] = snake->body[i - 1]; // Move each body segment to the position of the segment before it
+    }
+
+    // Move the head
+    SnakeSegment previousHead = snake->head; // Store the current head position
+    snake->head.x += movement.deltaY;
+    snake->head.y += movement.deltaX;
+
+    if (snake->head.x < MIN_X || snake->head.x > MAX_X || snake->head.y < MIN_Y || snake->head.y > MAX_Y) {
+        snake->isAlive = 0;
+    }
+
+    // Move the first body segment to the previous head position
+    snake->body[0] = previousHead;
+}
+
+void handlePlayerInput(SDL_Event *event, Movement *playerDirection, int *quit, Movement *lastValidDirection, Snake *playerSnake) {
+    while (SDL_PollEvent(event) != 0) {
+        if (event->type == SDL_QUIT) {
+            playerSnake->isAlive = 0;
+            *quit = 1;
+        } else if (event->type == SDL_KEYDOWN) {
+            Movement newDirection = *playerDirection;
+            switch (event->key.keysym.sym) {
+                case SDLK_UP:
+                    newDirection.deltaX = -20;
+                    newDirection.deltaY = 0;
+                    break;
+                case SDLK_DOWN:
+                    newDirection.deltaX = 20;
+                    newDirection.deltaY = 0;
+                    break;
+                case SDLK_LEFT:
+                    newDirection.deltaX = 0;
+                    newDirection.deltaY = -20;
+                    break;
+                case SDLK_RIGHT:
+                    newDirection.deltaX = 0;
+                    newDirection.deltaY = 20;
+                    break;
+            }
+            
+            // Check if the new direction is opposite to the last valid direction
+            if (newDirection.deltaX != -lastValidDirection->deltaX || newDirection.deltaY != -lastValidDirection->deltaY) {
+                // Update the player direction and last valid direction
+                *playerDirection = newDirection;
+                *lastValidDirection = *playerDirection;
+            }
+        }
+    }
+}
+
+void initPlayerSnake(Snake *playerSnake, Movement *playerDirection){
+    recv(clientSocket, &playerID, sizeof(int), 0);
+    recv(clientSocket, playerSnake, sizeof(Snake), 0);
+    recv(clientSocket, playerDirection, sizeof(Movement), 0);
+}
+
+void initConnection(){
     // Create a client socket
-    int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket == -1) {
         perror("Error creating client socket");
         exit(EXIT_FAILURE);
@@ -83,115 +265,4 @@ int main() {
         close(clientSocket);
         exit(EXIT_FAILURE);
     }
-
-    // Initialize SDL and then Creates SDL window and renderer
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-        printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
-        return -1;
-    }
-    
-    SDL_Window* window = SDL_CreateWindow("Snake Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-    if (window == NULL) {
-        printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
-        return -1;
-    }
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    if(renderer == NULL){
-        printf("Render did not load! SDL_Error: %s\n", SDL_GetError());
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return EXIT_FAILURE;
-    }
-
-    // Create a thread for receiving data from the server
-    pthread_t recvThread;
-    if (pthread_create(&recvThread, NULL, receiveThread, &clientSocket) != 0) {
-        perror("Error creating receive thread");
-        close(clientSocket);
-        exit(EXIT_FAILURE);
-    }
-
-    int otherPlayerPositions[MAX_CLIENTS][2];
-
-    // get PlayerID and initial position from server
-    int startX, startY;
-    recv(clientSocket, &playerID, sizeof(int), 0);
-    recv(clientSocket, &startX, sizeof(int), 0);
-    recv(clientSocket, &startY, sizeof(int), 0);
-
-    // Initialize Current player's rectangle and set Directions
-    Rectangle player = {startX, startY, 20,20};
-    Movement playerDirection = {0, 20};
-
-    SDL_Event event;
-    int quit = 0;
-    // Main Loop for SDL Events
-    while (!quit) {
-        while (SDL_PollEvent(&event) != 0) {
-            if (event.type == SDL_QUIT) {
-                quit = 1;
-            }else if (event.type == SDL_KEYDOWN) {
-                switch (event.key.keysym.sym) {
-                    case SDLK_UP:
-                        playerDirection.deltaX = -20;
-                        playerDirection.deltaY = 0;
-                        break;
-                    case SDLK_DOWN:
-                        playerDirection.deltaX = 20;
-                        playerDirection.deltaY = 0;
-                        break;
-                    case SDLK_LEFT:
-                        playerDirection.deltaX = 0;
-                        playerDirection.deltaY = -20;
-                        break;
-                    case SDLK_RIGHT:
-                        playerDirection.deltaX = 0;
-                        playerDirection.deltaY = 20;
-                        break;
-                }
-            }
-        }
-
-        moveRectangle(&player, playerDirection.deltaX, playerDirection.deltaY);
-
-        // Clear the Screen
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
-
-        send(clientSocket, &player.x, sizeof(int), 0);
-        send(clientSocket, &player.y, sizeof(int), 0);
-
-        // Move and render the current Players Rectangle
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        SDL_Rect rect = { player.x, player.y, player.width, player.height};
-        SDL_RenderFillRect(renderer, &rect);
-
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
-            if (otherPlayers[i].x != -1 && otherPlayers[i].y != -1) {
-                SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Set color for other players
-                SDL_Rect otherRect = {
-                    otherPlayers[i].x,
-                    otherPlayers[i].y,
-                    otherPlayers[i].width,
-                    otherPlayers[i].height
-                };
-                SDL_RenderFillRect(renderer, &otherRect);
-            }
-        }
-        
-        // Updates the Screen
-        SDL_RenderPresent(renderer);
-        SDL_Delay(100);
-    }
-
-    // Destroys the Objects used in the program
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-
-    SDL_Quit();
-
-    // Clean up and close socket
-    close(clientSocket);
-
-    return 0;
 }

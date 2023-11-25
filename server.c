@@ -6,104 +6,63 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58920
+#define PORT 58905
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
 #define MAX_CLIENTS 4
+#define MAX_SNAKE_LENGTH 21
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-int playerPositions[MAX_CLIENTS][2]; 
-int connectedPlayers[MAX_CLIENTS]; // A Flag for checking if a player really did connect
+#define MIN_X 0
+#define MAX_X (WINDOW_WIDTH - 20) // Adjusted for the snake's head size
+#define MIN_Y 0
+#define MAX_Y (WINDOW_HEIGHT - 20) // Adjusted for the snake's head size
 
+// Structs
 typedef struct{
     int clientSocket;
     int playerID;
-} ClientInfo;
+} PlayerInfo;
 
-void *clientHandler(void *arg) {
-    ClientInfo *clientInfo = (ClientInfo *)arg;
-    int clientSocket = clientInfo->clientSocket;
-    int playerID = clientInfo->playerID;
-    free(arg);
+typedef struct {
+    int x;
+    int y;
+} SnakeSegment;
 
-    int x = rand() % WINDOW_WIDTH;
-    int y = rand() % WINDOW_HEIGHT;
+typedef struct {
+    SnakeSegment head;
+    SnakeSegment body[MAX_SNAKE_LENGTH - 1]; // -1 for excluding head
+    int body_length;
+    int isAlive;
+} Snake;
 
-    // Send starting coordinates to the client
-    send(clientSocket, &playerID, sizeof(int), 0);
-    send(clientSocket, &x, sizeof(int), 0);
-    send(clientSocket, &y, sizeof(int), 0);
+typedef struct{
+    int deltaX, deltaY;
+} Movement;
 
-    // Handle ongoing player movements from the client
-    while (1) {
-        int deltaX, deltaY;
-        int bytesReceivedX = recv(clientSocket, &deltaX, sizeof(int), 0);
-        int bytesReceivedY = recv(clientSocket, &deltaY, sizeof(int), 0);
+typedef struct {
+    int clientSocket;
+    int playerID;
+    Snake playerSnake;
+    Movement playerMovement;
+    int active; // Indicates if the client is active or disconnected
+} PlayerData;
 
-        if (bytesReceivedX <= 0 || bytesReceivedY <= 0) {
-            printf("Player %d has disconnected\n", playerID);
-            break;
-        }
+// Global Variables/Arrays
+int serverSocket;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+PlayerData players[MAX_CLIENTS];
 
-        printf("Player %d - X: %d Y: %d\n", playerID, deltaX, deltaY);
-        // Handle player movements here and update player positions if needed
-
-        pthread_mutex_lock(&mutex); // Lock mutex before accessing shared data (playerPositions)
-        playerPositions[playerID - 1][0] = deltaX;
-        playerPositions[playerID - 1][1] = deltaY;
-
-        // Broadcast updated positions to all clients
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
-            if (i != playerID - 1 && playerPositions[i][0] != -1 && playerPositions[i][1] != -1) {
-                int playerID = i + 1;
-                send(clientSocket, &playerID, sizeof(int), 0);
-                send(clientSocket, &playerPositions[i][0], sizeof(int), 0);
-                send(clientSocket, &playerPositions[i][1], sizeof(int), 0);
-            }
-        }
-        pthread_mutex_unlock(&mutex); // Unlock mutex after updating shared data
-    }
-
-    // Close client socket after handling movements or disconnection
-    close(clientSocket);
-    return NULL;
-}
+void startServer();
+void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMovement);
+void *playerHandler(void *arg);
+void *inputHandler(void *arg);
+void broadcastSnakes(int senderID, Snake* playerSnake);
 
 int main() {
-    // Create a server socket
-    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (serverSocket == -1) {
-        perror("Error creating server socket");
-        exit(EXIT_FAILURE);
-    }
-
-    // Set up the server address struct
-    struct sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_addr.s_addr = INADDR_ANY;
-    serverAddress.sin_port = htons(PORT);
-
-    // Bind the server socket
-    if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
-        perror("Error binding server socket");
-        close(serverSocket);
-        exit(EXIT_FAILURE);
-    }
-
-    // Listen for incoming connections
-    if (listen(serverSocket, 1) == -1) {
-        perror("Error listening for connections");
-        close(serverSocket);
-        exit(EXIT_FAILURE);
-    }
-
-    // Array for player positions and movements
-    int playerPositions[MAX_CLIENTS][2];
-    int playerMovements[MAX_CLIENTS][2];
+    startServer();
 
     // player ID Counter
     int playerID = 1;
-    memset(playerPositions, -1, sizeof(playerPositions));
 
     while (1) {
         if (playerID <= MAX_CLIENTS) {
@@ -117,13 +76,13 @@ int main() {
             }
 
             // Create client info to pass to the thread
-            ClientInfo *clientInfo = malloc(sizeof(ClientInfo));
-            clientInfo->clientSocket = *clientSocket;
-            clientInfo->playerID = playerID;
+            PlayerInfo *playerInfo = malloc(sizeof(PlayerInfo));
+            playerInfo->clientSocket = *clientSocket;
+            playerInfo->playerID = playerID;
 
             // Create a thread for the client connection
             pthread_t clientThread;
-            if (pthread_create(&clientThread, NULL, clientHandler, (void *)clientInfo) != 0) {
+            if (pthread_create(&clientThread, NULL, playerHandler, (void *)playerInfo) != 0) {
                 perror("Error creating client thread");
                 close(serverSocket);
                 exit(EXIT_FAILURE);
@@ -149,7 +108,184 @@ int main() {
     }
 
     // Clean up and close sockets
+    
     close(serverSocket);
 
     return 0;
+}
+
+void *playerHandler(void *arg) {
+    PlayerInfo *playerInfo = (PlayerInfo *)arg;
+    int clientSocket = playerInfo->clientSocket;
+    int playerID = playerInfo->playerID;
+
+    Snake playerSnake;
+    Movement startingPosition;
+    initPlayer(playerInfo, &playerSnake, &startingPosition);
+
+    send(clientSocket, &playerID, sizeof(int), 0);
+    send(clientSocket, &playerSnake, sizeof(Snake), 0);
+    send(clientSocket, &startingPosition, sizeof(Movement), 0);
+
+    pthread_mutex_lock(&mutex);
+    players[playerID - 1].clientSocket = clientSocket;
+    players[playerID - 1].playerID = playerID;
+    players[playerID - 1].playerSnake = playerSnake;
+    players[playerID - 1].playerMovement = startingPosition;
+    players[playerID - 1].active = 1;
+    pthread_mutex_unlock(&mutex);
+
+    while (1) {
+        // Receive updated snake position from the client
+        int playerID;
+        recv(clientSocket, &playerID, sizeof(int), 0);
+        Snake receivedSnake;
+        int bytesReceived = recv(clientSocket, &receivedSnake, sizeof(Snake), 0);
+
+        // Handle disconnection or error
+        if (bytesReceived <= 0) {
+            printf("Player %d disconnected\n", playerID);
+            pthread_mutex_lock(&mutex);
+            players[playerID - 1].active = 0;
+            pthread_mutex_unlock(&mutex);
+            break; // Exit the loop on disconnection
+        }
+
+        // Update the server's representation of the client's snake
+        pthread_mutex_lock(&mutex);
+        players[playerID - 1].playerSnake = receivedSnake;
+        pthread_mutex_unlock(&mutex);
+
+        // Broadcast updated snake positions to other players
+        broadcastSnakes(playerID, &receivedSnake);
+    }
+
+    close(clientSocket);
+    free(arg);
+    return NULL;
+}
+
+void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMovement){
+    playerSnake->body_length = 5;
+    playerSnake->isAlive = 1;
+    switch (playerInfo->playerID) {
+        case 1: // Top-left
+            playerSnake->head.x = 20;
+            playerSnake->head.y = 0;
+            startingMovement->deltaX = 0;
+            startingMovement->deltaY = 20;
+
+            // Adjust the initial body positions relative to the head - from the right side
+            for (int i = 0; i < playerSnake->body_length; ++i) {
+                playerSnake->body[i].x = playerSnake->head.x - (i + 1) * 20;
+                playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
+            }
+            break;
+        case 2: // Top-right
+            playerSnake->head.x  = WINDOW_WIDTH - 20;
+            playerSnake->head.y  = 0;
+            startingMovement->deltaX = 0;
+            startingMovement->deltaY = -20;
+
+            // Adjust the initial body positions relative to the head - from the left side
+            for (int i = 0; i < playerSnake->body_length; ++i) {
+                playerSnake->body[i].x = playerSnake->head.x + (i + 1) * 20;
+                playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
+            }
+            break;
+        case 3: // Bottom-left
+            playerSnake->head.x  = 0;
+            playerSnake->head.y  = WINDOW_HEIGHT - 20;
+            startingMovement->deltaX = 0;
+            startingMovement->deltaY = 20;
+
+            // Adjust the initial body positions relative to the head - from the right side
+            for (int i = 0; i < playerSnake->body_length; ++i) {
+                playerSnake->body[i].x = playerSnake->head.x - (i + 1) * 20;
+                playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
+            }
+            break;
+        case 4: // Bottom-right
+            playerSnake->head.x = WINDOW_WIDTH - 20;
+            playerSnake->head.y = WINDOW_HEIGHT - 20;
+            startingMovement->deltaX = 0;
+            startingMovement->deltaY = -20;
+
+            // Adjust the initial body positions relative to the head - from the left side
+            for (int i = 0; i < playerSnake->body_length; ++i) {
+                playerSnake->body[i].x = playerSnake->head.x + (i + 1) * 20;
+                playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
+
+            }
+            break;
+    }
+}
+
+void *inputHandler(void *arg) {
+    char input[10];
+    while (1) {
+        fgets(input, sizeof(input), stdin);
+        if (strcmp(input, "quit\n") == 0) {
+            printf("Server shutting down...\n");
+            int reuse = 1;
+            if (setsockopt(serverSocket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(int)) == -1) {
+                perror("Setting socket option failed");
+                exit(EXIT_FAILURE);
+            }
+            exit(EXIT_SUCCESS);
+        }
+    }
+    return NULL;
+}
+
+void startServer(){
+    // Create a server socket
+    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket == -1) {
+        perror("Error creating server socket");
+        exit(EXIT_FAILURE);
+    }
+
+    // Set up the server address struct
+    struct sockaddr_in serverAddress;
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_addr.s_addr = INADDR_ANY;
+    serverAddress.sin_port = htons(PORT);
+
+    // Bind the server socket
+    if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
+        perror("Error binding server socket");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    // Listen for incoming connections
+    if (listen(serverSocket, 1) == -1) {
+        perror("Error listening for connections");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+
+    // Initialize the client information array
+    for (int i = 0; i < MAX_CLIENTS; ++i) {
+        players[i].clientSocket = -1;
+        players[i].playerID = -1;
+        players[i].active = 0;
+    }
+
+    pthread_t inputThread;
+    if (pthread_create(&inputThread, NULL, inputHandler, NULL) != 0) {
+        perror("Error creating input thread");
+        close(serverSocket);
+        exit(EXIT_FAILURE);
+    }
+}
+
+void broadcastSnakes(int senderID, Snake* playerSnake) {
+    for (int i = 0; i < MAX_CLIENTS; ++i) {
+        if (players[i].active && i != senderID - 1) {
+            send(players[i].clientSocket, &senderID, sizeof(int), 0);
+            send(players[i].clientSocket, playerSnake, sizeof(Snake), 0);
+        }
+    }
 }
