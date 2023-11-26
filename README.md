@@ -1,6 +1,6 @@
 # Snake Game in C with SDL2 Library (Linux)
 
-This Snake game, crafted in C using the powerful SDL2 library, is a thrilling take on the classic. Dive into the nostalgic realm of retro gaming as you maneuver a snake across the screen, gobbling up pixels and growing longer with each meal.
+Explore this multiplayer Snake game developed in C, utilizing the potent SDL2 library for enriched graphics and seamless gameplay. Navigate your snake across the screen and try to be the last Snake alive against 3 other players.
 
 ## Features:
 
@@ -8,7 +8,7 @@ This Snake game, crafted in C using the powerful SDL2 library, is a thrilling ta
 - Work in Progress: Continuously evolving! Expect updates, improvements, and new features as the project advances.
 
 
-## How to Play:
+## How to Play
 
 - Clone the repository to your Linux machine.
 - Install the prerequisites (Located Below)
@@ -16,7 +16,7 @@ This Snake game, crafted in C using the powerful SDL2 library, is a thrilling ta
   - ```gcc server.c -o server && gcc client.c -o Snake-Game -lSDL2 -lSDL2_ttf``` 
 - Run the server and Snake-Game executable files to start playing.
 
-## Contributions:
+## Contributions
 Contributions and suggestions are greatly appreciated! Feel free to fork this repository, make changes, and submit pull requests to help enhance the game.
 
 <br>
