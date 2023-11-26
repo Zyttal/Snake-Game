@@ -7,16 +7,17 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58930
+#define PORT 58915
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
 #define MAX_CLIENTS 5
-#define MAX_SNAKE_LENGTH 50
+#define MAX_SNAKE_LENGTH 100
+#define SNAKE_SEGMENT_DIMENSION 20
 
 #define MIN_X 0
-#define MAX_X (WINDOW_WIDTH - 20) // Adjusted for the snake's head size
+#define MAX_X (WINDOW_WIDTH - SNAKE_SEGMENT_DIMENSION) // Adjusted for the snake's head size
 #define MIN_Y 0
-#define MAX_Y (WINDOW_HEIGHT - 20) // Adjusted for the snake's head size
+#define MAX_Y (WINDOW_HEIGHT - SNAKE_SEGMENT_DIMENSION) // Adjusted for the snake's head size
 
 typedef struct {
     int x;
@@ -69,9 +70,6 @@ int main() {
     Snake playerSnake;
     SDL_Event event;
 
-    int coordsDeathX;
-    int coordsDeathY;
-
     initConnection();
     initSDL();
     initSDL_ttf();
@@ -94,9 +92,6 @@ int main() {
 
         if(playerSnake.isAlive){
             moveSnake(&playerSnake, playerDirection);
-        }else{
-            coordsDeathX = playerSnake.head.x;
-            coordsDeathY = playerSnake.head.y;
         }
 
         send(clientSocket, &playerID, sizeof(int), 0);
@@ -105,11 +100,10 @@ int main() {
         renderAssets(renderer, &playerSnake, otherPlayers, numOtherPlayers);
         
         SDL_RenderPresent(renderer);
-        SDL_Delay(100);
+        SDL_Delay(50);
         
     }
-    
-    printf("%d : %d\n", coordsDeathX, coordsDeathY);
+
     close(clientSocket);
 
     return 0;
@@ -177,10 +171,10 @@ void renderAssets(SDL_Renderer* renderer, Snake* playerSnake, Snake* otherPlayer
     // Render the player's snake
     if (playerSnake->isAlive) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-        SDL_Rect headRect = { playerSnake->head.x, playerSnake->head.y, 20, 20 };
+        SDL_Rect headRect = { playerSnake->head.x, playerSnake->head.y, SNAKE_SEGMENT_DIMENSION, SNAKE_SEGMENT_DIMENSION };
         SDL_RenderFillRect(renderer, &headRect);
         for (int i = 0; i < playerSnake->body_length; ++i) {
-            SDL_Rect bodyRect = { playerSnake->body[i].x, playerSnake->body[i].y, 20, 20 };
+            SDL_Rect bodyRect = { playerSnake->body[i].x, playerSnake->body[i].y, SNAKE_SEGMENT_DIMENSION, SNAKE_SEGMENT_DIMENSION };
             SDL_RenderFillRect(renderer, &bodyRect);
         }
     }
@@ -189,10 +183,10 @@ void renderAssets(SDL_Renderer* renderer, Snake* playerSnake, Snake* otherPlayer
         if(otherPlayers[i].isAlive){
                 if (otherPlayers[i].head.x != -1 && otherPlayers[i].head.y != -1 && otherPlayers[i].body_length > 0) {
                 SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); 
-                SDL_Rect otherHeadRect = { otherPlayers[i].head.x, otherPlayers[i].head.y, 20, 20 };
+                SDL_Rect otherHeadRect = { otherPlayers[i].head.x, otherPlayers[i].head.y, SNAKE_SEGMENT_DIMENSION, SNAKE_SEGMENT_DIMENSION };
                 SDL_RenderFillRect(renderer, &otherHeadRect);
                 for (int j = 0; j < otherPlayers[i].body_length; ++j) {
-                    SDL_Rect otherBodyRect = { otherPlayers[i].body[j].x, otherPlayers[i].body[j].y, 20, 20 };
+                    SDL_Rect otherBodyRect = { otherPlayers[i].body[j].x, otherPlayers[i].body[j].y, SNAKE_SEGMENT_DIMENSION, SNAKE_SEGMENT_DIMENSION };
                     SDL_RenderFillRect(renderer, &otherBodyRect);
                 }
             }
@@ -299,20 +293,20 @@ void handlePlayerInput(SDL_Event *event, Movement *playerDirection, int *quit, M
             Movement newDirection = *playerDirection;
             switch (event->key.keysym.sym) {
                 case SDLK_UP:
-                    newDirection.deltaX = -20;
+                    newDirection.deltaX = -SNAKE_SEGMENT_DIMENSION;
                     newDirection.deltaY = 0;
                     break;
                 case SDLK_DOWN:
-                    newDirection.deltaX = 20;
+                    newDirection.deltaX = SNAKE_SEGMENT_DIMENSION;
                     newDirection.deltaY = 0;
                     break;
                 case SDLK_LEFT:
                     newDirection.deltaX = 0;
-                    newDirection.deltaY = -20;
+                    newDirection.deltaY = -SNAKE_SEGMENT_DIMENSION;
                     break;
                 case SDLK_RIGHT:
                     newDirection.deltaX = 0;
-                    newDirection.deltaY = 20;
+                    newDirection.deltaY = SNAKE_SEGMENT_DIMENSION;
                     break;
             }
             

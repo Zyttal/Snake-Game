@@ -6,16 +6,17 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58930
+#define PORT 58915
 #define WINDOW_WIDTH 1500
 #define WINDOW_HEIGHT 900
-#define MAX_CLIENTS 5
-#define MAX_SNAKE_LENGTH 50
+#define MAX_CLIENTS 5 // -1 to get the actual Maximum - (which is 4...)
+#define MAX_SNAKE_LENGTH 100
+#define SNAKE_SEGMENT_DIMENSION 20
 
 #define MIN_X 0
-#define MAX_X (WINDOW_WIDTH - 20) // Adjusted for the snake's head size
+#define MAX_X (WINDOW_WIDTH - SNAKE_SEGMENT_DIMENSION) // Adjusted for the snake's head size
 #define MIN_Y 0
-#define MAX_Y (WINDOW_HEIGHT - 20) // Adjusted for the snake's head size
+#define MAX_Y (WINDOW_HEIGHT - SNAKE_SEGMENT_DIMENSION) // Adjusted for the snake's head size
 
 // Structs
 typedef struct{
@@ -171,54 +172,54 @@ void *playerHandler(void *arg) {
 }
 
 void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMovement){
-    playerSnake->body_length = 40;
+    playerSnake->body_length = 50;
     playerSnake->isAlive = 1;
     switch (playerInfo->playerID) {
         case 1: // Top-left
-            playerSnake->head.x = 20;
+            playerSnake->head.x = SNAKE_SEGMENT_DIMENSION;
             playerSnake->head.y = 0;
             startingMovement->deltaX = 0;
-            startingMovement->deltaY = 20;
+            startingMovement->deltaY = SNAKE_SEGMENT_DIMENSION;
 
             // Adjust the initial body positions relative to the head - from the right side
             for (int i = 0; i < playerSnake->body_length; ++i) {
-                playerSnake->body[i].x = playerSnake->head.x - (i + 1) * 20;
+                playerSnake->body[i].x = playerSnake->head.x - (i + 1) * SNAKE_SEGMENT_DIMENSION;
                 playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
             }
             break;
         case 2: // Top-right
-            playerSnake->head.x  = WINDOW_WIDTH - 20;
+            playerSnake->head.x  = WINDOW_WIDTH - SNAKE_SEGMENT_DIMENSION;
             playerSnake->head.y  = 0;
             startingMovement->deltaX = 0;
-            startingMovement->deltaY = -20;
+            startingMovement->deltaY = -SNAKE_SEGMENT_DIMENSION;
 
             // Adjust the initial body positions relative to the head - from the left side
             for (int i = 0; i < playerSnake->body_length; ++i) {
-                playerSnake->body[i].x = playerSnake->head.x + (i + 1) * 20;
+                playerSnake->body[i].x = playerSnake->head.x + (i + 1) * SNAKE_SEGMENT_DIMENSION;
                 playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
             }
             break;
         case 3: // Bottom-left
             playerSnake->head.x  = 0;
-            playerSnake->head.y  = WINDOW_HEIGHT - 20;
+            playerSnake->head.y  = WINDOW_HEIGHT - SNAKE_SEGMENT_DIMENSION;
             startingMovement->deltaX = 0;
-            startingMovement->deltaY = 20;
+            startingMovement->deltaY = SNAKE_SEGMENT_DIMENSION;
 
             // Adjust the initial body positions relative to the head - from the right side
             for (int i = 0; i < playerSnake->body_length; ++i) {
-                playerSnake->body[i].x = playerSnake->head.x - (i + 1) * 20;
+                playerSnake->body[i].x = playerSnake->head.x - (i + 1) * SNAKE_SEGMENT_DIMENSION;
                 playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
             }
             break;
         case 4: // Bottom-right
-            playerSnake->head.x = WINDOW_WIDTH - 20;
-            playerSnake->head.y = WINDOW_HEIGHT - 20;
+            playerSnake->head.x = WINDOW_WIDTH - SNAKE_SEGMENT_DIMENSION;
+            playerSnake->head.y = WINDOW_HEIGHT - SNAKE_SEGMENT_DIMENSION;
             startingMovement->deltaX = 0;
-            startingMovement->deltaY = -20;
+            startingMovement->deltaY = -SNAKE_SEGMENT_DIMENSION;
 
             // Adjust the initial body positions relative to the head - from the left side
             for (int i = 0; i < playerSnake->body_length; ++i) {
-                playerSnake->body[i].x = playerSnake->head.x + (i + 1) * 20;
+                playerSnake->body[i].x = playerSnake->head.x + (i + 1) * SNAKE_SEGMENT_DIMENSION;
                 playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
 
             }
