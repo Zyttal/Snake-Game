@@ -8,8 +8,8 @@
 #include <pthread.h>
 
 #define PORT 58915
-#define WINDOW_WIDTH 1500
-#define WINDOW_HEIGHT 900
+#define WINDOW_WIDTH 1200
+#define WINDOW_HEIGHT 700
 #define MAX_CLIENTS 5
 #define MAX_SNAKE_LENGTH 100
 #define SNAKE_SEGMENT_DIMENSION 20
@@ -338,7 +338,7 @@ void initConnection(){
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(PORT);
-    inet_pton(AF_INET, "127.0.0.1", &serverAddress.sin_addr);
+    inet_pton(AF_INET, "192.168.254.130", &serverAddress.sin_addr);
 
     // Connect to the server
     if (connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {

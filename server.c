@@ -7,8 +7,8 @@
 #include <pthread.h>
 
 #define PORT 58915
-#define WINDOW_WIDTH 1500
-#define WINDOW_HEIGHT 900
+#define WINDOW_WIDTH 1200
+#define WINDOW_HEIGHT 700
 #define MAX_CLIENTS 5 // -1 to get the actual Maximum - (which is 4...)
 #define MAX_SNAKE_LENGTH 100
 #define SNAKE_SEGMENT_DIMENSION 20
