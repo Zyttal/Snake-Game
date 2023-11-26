@@ -240,7 +240,7 @@ void *inputHandler(void *arg) {
         }
         if (strcmp(input, "start\n") == 0) {
             startSignal = 1;
-            printf("Start Signal send to all clients.\n");
+            printf("Game has Started!\n");
         }
         
     }

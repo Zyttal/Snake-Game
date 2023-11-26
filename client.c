@@ -59,6 +59,7 @@ SDL_Texture* winTextTexture = NULL;
 void *receiveThread(void *arg); // For receiving Broadcasted Snake Positions
 void moveSnake(Snake *snake, Movement movement);
 void handlePlayerInput(SDL_Event *event, Movement *playerDirection, int *quit, Movement *lastValidDirection, Snake *playerSnake);
+void checkState(Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers);
 void initPlayerSnake(Snake *playerSnake, Movement *playerDirection);
 void initConnection();
 
@@ -70,18 +71,6 @@ void *receiveThread(void *arg);
 void showDeathMessage();
 void showWaitingMessage();
 void showWinMessage();
-
-void checkState(Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers){
-    if (win == 1) return;
-    // Check other players Alive Status
-    for (int i = 0; i < numOtherPlayers; ++i) {
-        if(otherPlayers[i].isAlive){
-            break;
-        }else{
-            win = 1;
-        }
-    }
-}
 
 int main() {
     int numOtherPlayers = MAX_CLIENTS - 1;
@@ -120,14 +109,13 @@ int main() {
     
     // Main Loop for SDL Events
     while (!quit) {
-        // check other Snakes
-        checkState(&playerSnake, otherPlayers, numOtherPlayers);
         Movement lastValidDirection = playerDirection;
         handlePlayerInput(&event, &playerDirection, &quit, &lastValidDirection, &playerSnake);
         renderAssets(renderer, &playerSnake, otherPlayers, numOtherPlayers);
 
         if(playerSnake.isAlive){
             moveSnake(&playerSnake, playerDirection);
+            
         }
 
         send(clientSocket, &playerID, sizeof(int), 0);
@@ -137,6 +125,7 @@ int main() {
         
         SDL_RenderPresent(renderer);
         SDL_Delay(50);
+        checkState(&playerSnake, otherPlayers, numOtherPlayers);
     }
 
     close(clientSocket);
@@ -469,5 +458,26 @@ void showWinMessage() {
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Set background color
 
         SDL_RenderCopy(renderer, winTextTexture, NULL, &textRect);
+    }
+}
+
+void checkState(Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers){
+    if (startSignal == 0) return;
+    if (win == 1) return;
+    if (!playerSnake->isAlive) return;
+    int aliveOtherPlayers = 0;
+
+    // Check other players' alive status
+    for (int i = 0; i < numOtherPlayers; ++i) {
+        if (otherPlayers[i].isAlive) {
+            aliveOtherPlayers++;
+            // If at least one other player is alive, the game continues
+            break;
+        }
+    }
+
+    // If no other player is alive, declare the local player as the winner
+    if (aliveOtherPlayers == 0) {
+        win = 1;
     }
 }
