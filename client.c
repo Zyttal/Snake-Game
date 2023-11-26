@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58915
+#define PORT 58501
 #define WINDOW_WIDTH 1200
 #define WINDOW_HEIGHT 700
 #define MAX_CLIENTS 5
@@ -39,15 +39,21 @@ typedef struct{
 Snake otherPlayers[MAX_CLIENTS];
 int playerID;
 int clientSocket;
+int startSignal = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+int win = 0;
 
 // SDL Variables
 SDL_Renderer* renderer;
 SDL_Window* window;
 TTF_Font* font;
 
-SDL_Surface* textSurface;
-SDL_Texture* textTexture;
+SDL_Surface* deathTextSurface = NULL;
+SDL_Texture* deathTextTexture = NULL;
+SDL_Surface* waitingTextSurface = NULL;
+SDL_Texture* waitingTextTexture = NULL;
+SDL_Surface* winTextSurface = NULL;
+SDL_Texture* winTextTexture = NULL;
 
 // Function Prototypes
 void *receiveThread(void *arg); // For receiving Broadcasted Snake Positions
@@ -62,6 +68,20 @@ void initSDL_ttf();
 void renderAssets(SDL_Renderer* renderer, Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers);
 void *receiveThread(void *arg);
 void showDeathMessage();
+void showWaitingMessage();
+void showWinMessage();
+
+void checkState(Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers){
+    if (win == 1) return;
+    // Check other players Alive Status
+    for (int i = 0; i < numOtherPlayers; ++i) {
+        if(otherPlayers[i].isAlive){
+            break;
+        }else{
+            win = 1;
+        }
+    }
+}
 
 int main() {
     int numOtherPlayers = MAX_CLIENTS - 1;
@@ -83,9 +103,25 @@ int main() {
         close(clientSocket);
         exit(EXIT_FAILURE);
     }
+
+    // Waiting for Game Start
+    while(1){
+        if (startSignal == 1) {
+            break;
+        }
+        
+        renderAssets(renderer, &playerSnake, otherPlayers, numOtherPlayers);
+
+        send(clientSocket, &playerID,sizeof(int), 0);
+        send(clientSocket, &playerSnake, sizeof(Snake), 0);
+
+        renderAssets(renderer, &playerSnake, otherPlayers, numOtherPlayers);
+    }
     
     // Main Loop for SDL Events
     while (!quit) {
+        // check other Snakes
+        checkState(&playerSnake, otherPlayers, numOtherPlayers);
         Movement lastValidDirection = playerDirection;
         handlePlayerInput(&event, &playerDirection, &quit, &lastValidDirection, &playerSnake);
         renderAssets(renderer, &playerSnake, otherPlayers, numOtherPlayers);
@@ -101,7 +137,6 @@ int main() {
         
         SDL_RenderPresent(renderer);
         SDL_Delay(50);
-        
     }
 
     close(clientSocket);
@@ -132,8 +167,6 @@ int initSDL(){
 }
 
 void initSDL_ttf(){
-    SDL_Color textColor = { 255, 255, 255 };
-    
     if (TTF_Init() == -1) {
         fprintf(stderr, "TTF_Init error: %s\n", TTF_GetError());
         return;
@@ -146,18 +179,56 @@ void initSDL_ttf(){
         return;
     }
 
-    textSurface = TTF_RenderText_Solid(font, "You Died!", textColor);
-    if (textSurface == NULL) {
+    SDL_Color deathTextColor = { 255, 0, 0 };
+    deathTextSurface = TTF_RenderText_Solid(font, "You Died!", deathTextColor);
+    if (deathTextSurface == NULL) {
         fprintf(stderr, "Error creating text surface: %s\n", TTF_GetError());
         TTF_CloseFont(font);
         TTF_Quit();
         return;
     }
 
-    textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
-    if (textTexture == NULL) {
+    
+    deathTextTexture = SDL_CreateTextureFromSurface(renderer, deathTextSurface);
+    if (deathTextTexture == NULL) {
         fprintf(stderr, "Error creating text texture: %s\n", SDL_GetError());
-        SDL_FreeSurface(textSurface);
+        SDL_FreeSurface(deathTextSurface);
+        TTF_CloseFont(font);
+        TTF_Quit();
+        return;
+    }
+
+    SDL_Color waitingTextColor = { 0, 0, 255 };
+    waitingTextSurface = TTF_RenderText_Solid(font, "Waiting for Server...", waitingTextColor);
+    if (waitingTextSurface == NULL) {
+        fprintf(stderr, "Error creating text surface: %s\n", TTF_GetError());
+        TTF_CloseFont(font);
+        TTF_Quit();
+        return;
+    }
+
+    waitingTextTexture = SDL_CreateTextureFromSurface(renderer, waitingTextSurface);
+    if (waitingTextTexture == NULL) {
+        fprintf(stderr, "Error creating text texture: %s\n", SDL_GetError());
+        SDL_FreeSurface(waitingTextSurface);
+        TTF_CloseFont(font);
+        TTF_Quit();
+        return;
+    }
+
+    SDL_Color winTextColor = { 0, 255, 0 };
+    winTextSurface = TTF_RenderText_Solid(font, "You Win!", winTextColor);
+    if (winTextSurface == NULL) {
+        fprintf(stderr, "Error creating text surface: %s\n", TTF_GetError());
+        TTF_CloseFont(font);
+        TTF_Quit();
+        return;
+    }
+
+    winTextTexture = SDL_CreateTextureFromSurface(renderer, winTextSurface);
+    if (waitingTextTexture == NULL) {
+        fprintf(stderr, "Error creating text texture: %s\n", SDL_GetError());
+        SDL_FreeSurface(winTextSurface);
         TTF_CloseFont(font);
         TTF_Quit();
         return;
@@ -165,6 +236,7 @@ void initSDL_ttf(){
 }
 
 void renderAssets(SDL_Renderer* renderer, Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers) {
+    
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Set background color
     SDL_RenderClear(renderer); // Clear the screen
 
@@ -191,10 +263,17 @@ void renderAssets(SDL_Renderer* renderer, Snake* playerSnake, Snake* otherPlayer
                 }
             }
         } 
-    // Render Death Message
-    if(!playerSnake->isAlive){
+    }
+
+    // Render Messages
+    if(!playerSnake->isAlive && !win){
         showDeathMessage();
     }
+    if(!startSignal){
+        showWaitingMessage();
+    }
+    if(win){
+        showWinMessage();
     }
 
     // Update the window
@@ -207,6 +286,7 @@ void *receiveThread(void *arg) {
         int receivedPlayerID;
         Snake receivedSnake;
 
+        recv(clientSocket, &startSignal, sizeof(int), 0);
         recv(clientSocket, &receivedPlayerID, sizeof(int), 0);
         recv(clientSocket, &receivedSnake, sizeof(Snake), 0);
 
@@ -216,8 +296,10 @@ void *receiveThread(void *arg) {
             otherPlayers[receivedPlayerID - 1].body_length = receivedSnake.body_length;
             otherPlayers[receivedPlayerID - 1].isAlive = receivedSnake.isAlive;
             for(int i = 0; i < otherPlayers[receivedPlayerID - 1].body_length; ++i){
+                pthread_mutex_lock(&mutex);
                 otherPlayers[receivedPlayerID - 1].body[i].x = receivedSnake.body[i].x;
                 otherPlayers[receivedPlayerID - 1].body[i].y = receivedSnake.body[i].y;
+                pthread_mutex_unlock(&mutex);
             }
             
         } else if (receivedSnake.head.x == -1 && receivedSnake.head.y == -1) {
@@ -349,13 +431,43 @@ void initConnection(){
 }
 
 void showDeathMessage() {
-    int textWidth = textSurface->w;
-    int textHeight = textSurface->h;
+    if (deathTextTexture != NULL) {
+        int textWidth = deathTextSurface->w;
+        int textHeight = deathTextSurface->h;
 
-    // Adjust coordinates to place the text at the bottom left corner
-    SDL_Rect textRect = { 10, WINDOW_HEIGHT - textHeight - 10, textWidth, textHeight };
+        // Adjust coordinates to place the text at the bottom left corner
+        SDL_Rect textRect = { 10, WINDOW_HEIGHT - textHeight - 10, textWidth, textHeight };
 
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Set background color
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Set background color
 
-    SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
+        SDL_RenderCopy(renderer, deathTextTexture, NULL, &textRect);
+    }
+}
+
+void showWaitingMessage() {
+    if (waitingTextTexture != NULL) {
+        int textWidth = waitingTextSurface->w;
+        int textHeight = waitingTextSurface->h;
+
+        // Adjust coordinates to place the text at the bottom left corner
+        SDL_Rect textRect = { 10, WINDOW_HEIGHT - textHeight - 10, textWidth, textHeight };
+
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Set background color
+
+        SDL_RenderCopy(renderer, waitingTextTexture, NULL, &textRect);
+    }
+}
+
+void showWinMessage() {
+    if (waitingTextTexture != NULL) {
+        int textWidth = winTextSurface->w;
+        int textHeight = winTextSurface->h;
+
+        // Adjust coordinates to place the text at the bottom left corner
+        SDL_Rect textRect = { 10, WINDOW_HEIGHT - textHeight - 10, textWidth, textHeight };
+
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255); // Set background color
+
+        SDL_RenderCopy(renderer, winTextTexture, NULL, &textRect);
+    }
 }

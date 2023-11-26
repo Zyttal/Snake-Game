@@ -5,6 +5,7 @@
         "*.py": "python",
         "stdio.h": "c",
         "inet.h": "c",
-        "pthread.h": "c"
+        "pthread.h": "c",
+        "unistd.h": "c"
     }
 }

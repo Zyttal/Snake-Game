@@ -6,7 +6,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 
-#define PORT 58915
+#define PORT 58501
 #define WINDOW_WIDTH 1200
 #define WINDOW_HEIGHT 700
 #define MAX_CLIENTS 5 // -1 to get the actual Maximum - (which is 4...)
@@ -52,6 +52,7 @@ typedef struct {
 int serverSocket;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 PlayerData players[MAX_CLIENTS];
+int startSignal = 0;
 
 void startServer();
 void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMovement);
@@ -103,8 +104,8 @@ int main() {
                 close(serverSocket);
                 exit(EXIT_FAILURE);
             }
+            perror("Connection Denied: Max number of players reached\n");
             close(*deniedSocket);
-            printf("Connection Denied: Max number of players reached\n");
         }
     }
 
@@ -139,8 +140,9 @@ void *playerHandler(void *arg) {
     while (1) {
         // Receive updated snake position from the client
         int playerID;
-        recv(clientSocket, &playerID, sizeof(int), 0);
         Snake receivedSnake;
+
+        recv(clientSocket, &playerID, sizeof(int), 0);        
         int bytesReceived = recv(clientSocket, &receivedSnake, sizeof(Snake), 0);
 
         // Handle disconnection or error
@@ -221,7 +223,6 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
             for (int i = 0; i < playerSnake->body_length; ++i) {
                 playerSnake->body[i].x = playerSnake->head.x + (i + 1) * SNAKE_SEGMENT_DIMENSION;
                 playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
-
             }
             break;
     }
@@ -229,12 +230,17 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
 
 void *inputHandler(void *arg) {
     char input[10];
+    
     while (1) {
         fgets(input, sizeof(input), stdin);
         if (strcmp(input, "quit\n") == 0) {
             printf("Server shutting down...\n");
             close(serverSocket);
             exit(EXIT_SUCCESS);
+        }
+        if (strcmp(input, "start\n") == 0) {
+            startSignal = 1;
+            printf("Start Signal send to all clients.\n");
         }
         
     }
@@ -285,10 +291,13 @@ void startServer(){
 }
 
 void broadcastSnakes(int senderID, Snake* playerSnake) {
+    pthread_mutex_lock(&mutex);
     for (int i = 0; i < MAX_CLIENTS; ++i) {
         if (players[i].active && i != senderID - 1) {
+            send(players[i].clientSocket, &startSignal, sizeof(int), 0);
             send(players[i].clientSocket, &senderID, sizeof(int), 0);
             send(players[i].clientSocket, playerSnake, sizeof(Snake), 0);
         }
     }
+    pthread_mutex_unlock(&mutex);
 }
