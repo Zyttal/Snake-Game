@@ -280,17 +280,21 @@ void *receiveThread(void *arg) {
         recv(clientSocket, &receivedSnake, sizeof(Snake), 0);
 
         if (receivedPlayerID != playerID){
-            otherPlayers[receivedPlayerID - 1].head.x = receivedSnake.head.x;
-            otherPlayers[receivedPlayerID - 1].head.y = receivedSnake.head.y;
+            pthread_mutex_lock(&mutex);
+            otherPlayers[receivedPlayerID - 1].head = receivedSnake.head;
             otherPlayers[receivedPlayerID - 1].body_length = receivedSnake.body_length;
             otherPlayers[receivedPlayerID - 1].isAlive = receivedSnake.isAlive;
-            for(int i = 0; i < otherPlayers[receivedPlayerID - 1].body_length; ++i){
-                pthread_mutex_lock(&mutex);
-                otherPlayers[receivedPlayerID - 1].body[i].x = receivedSnake.body[i].x;
-                otherPlayers[receivedPlayerID - 1].body[i].y = receivedSnake.body[i].y;
-                pthread_mutex_unlock(&mutex);
+
+            if (otherPlayers[receivedPlayerID - 1].body_length == receivedSnake.body_length) {
+                memcpy(otherPlayers[receivedPlayerID - 1].body, receivedSnake.body, receivedSnake.body_length * sizeof(SnakeSegment));
+            }else{
+                for(int i = 0; i < otherPlayers[receivedPlayerID - 1].body_length; ++i){
+                
+                    otherPlayers[receivedPlayerID - 1].body[i].x = receivedSnake.body[i].x;
+                    otherPlayers[receivedPlayerID - 1].body[i].y = receivedSnake.body[i].y;
+                }
             }
-            
+            pthread_mutex_unlock(&mutex);
         } else if (receivedSnake.head.x == -1 && receivedSnake.head.y == -1) {
             // Player disconnect handling
             otherPlayers[receivedPlayerID - 1].head.x = -1;
@@ -476,7 +480,7 @@ void checkState(Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers){
         }
     }
 
-    // If no other player is alive, declare the local player as the winner
+    // If no other player is alive, declare the current player as the winner
     if (aliveOtherPlayers == 0) {
         win = 1;
     }
