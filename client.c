@@ -12,7 +12,7 @@
 #define WINDOW_HEIGHT 700
 #define MAX_CLIENTS 5
 #define MAX_SNAKE_LENGTH 100
-#define SNAKE_SEGMENT_DIMENSION 20
+#define SNAKE_SEGMENT_DIMENSION 15
 
 #define MIN_X 0
 #define MAX_X (WINDOW_WIDTH - SNAKE_SEGMENT_DIMENSION) // Adjusted for the snake's head size
@@ -107,8 +107,8 @@ int main() {
         renderAssets(renderer, &playerSnake, otherPlayers, numOtherPlayers);
     }
     
-    // Main Loop for SDL Events
-    while (!quit) {
+    // Game Loop for SDL Events
+    while(!quit){
         Movement lastValidDirection = playerDirection;
         handlePlayerInput(&event, &playerDirection, &quit, &lastValidDirection, &playerSnake);
         renderAssets(renderer, &playerSnake, otherPlayers, numOtherPlayers);
@@ -413,7 +413,7 @@ void initConnection(){
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(PORT);
-    inet_pton(AF_INET, "192.168.254.130", &serverAddress.sin_addr);
+    inet_pton(AF_INET, "172.29.5.228", &serverAddress.sin_addr);
 
     // Connect to the server
     if (connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {

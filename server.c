@@ -11,7 +11,7 @@
 #define WINDOW_HEIGHT 700
 #define MAX_CLIENTS 5 // -1 to get the actual Maximum - (which is 4...)
 #define MAX_SNAKE_LENGTH 100
-#define SNAKE_SEGMENT_DIMENSION 20
+#define SNAKE_SEGMENT_DIMENSION 15
 
 #define MIN_X 0
 #define MAX_X (WINDOW_WIDTH - SNAKE_SEGMENT_DIMENSION) // Adjusted for the snake's head size
@@ -60,6 +60,10 @@ void *playerHandler(void *arg);
 void *inputHandler(void *arg);
 void broadcastSnakes(int senderID, Snake* playerSnake);
 
+// Temporary Functions //
+void printGameStatus();
+char* checkStatus(PlayerData currentPlayer, int playersAlive);
+
 int main() {
     startServer();
     
@@ -92,8 +96,7 @@ int main() {
 
             pthread_detach(clientThread);
 
-            // Display player connection
-            printf("Player %d Connected\n", playerID);
+            printGameStatus();
             playerID++;
         } else {
             // Accepts a socket then Denies Socket
@@ -155,7 +158,7 @@ void *playerHandler(void *arg) {
         }
 
         if (!(receivedSnake.isAlive) && deathFlag == 0){
-            printf("Player %d Died.\n", playerID);
+            printGameStatus();
             deathFlag = 1;
         }
 
@@ -183,7 +186,7 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
             startingMovement->deltaX = 0;
             startingMovement->deltaY = SNAKE_SEGMENT_DIMENSION;
 
-            // Adjust the initial body positions relative to the head - from the right side
+            // Adjust the initial body positions relative to the head - from the left side
             for (int i = 0; i < playerSnake->body_length; ++i) {
                 playerSnake->body[i].x = playerSnake->head.x - (i + 1) * SNAKE_SEGMENT_DIMENSION;
                 playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
@@ -195,7 +198,7 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
             startingMovement->deltaX = 0;
             startingMovement->deltaY = -SNAKE_SEGMENT_DIMENSION;
 
-            // Adjust the initial body positions relative to the head - from the left side
+            // Adjust the initial body positions relative to the head - from the right side
             for (int i = 0; i < playerSnake->body_length; ++i) {
                 playerSnake->body[i].x = playerSnake->head.x + (i + 1) * SNAKE_SEGMENT_DIMENSION;
                 playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
@@ -207,7 +210,7 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
             startingMovement->deltaX = 0;
             startingMovement->deltaY = SNAKE_SEGMENT_DIMENSION;
 
-            // Adjust the initial body positions relative to the head - from the right side
+            // Adjust the initial body positions relative to the head - from the left side
             for (int i = 0; i < playerSnake->body_length; ++i) {
                 playerSnake->body[i].x = playerSnake->head.x - (i + 1) * SNAKE_SEGMENT_DIMENSION;
                 playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
@@ -219,7 +222,7 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
             startingMovement->deltaX = 0;
             startingMovement->deltaY = -SNAKE_SEGMENT_DIMENSION;
 
-            // Adjust the initial body positions relative to the head - from the left side
+            // Adjust the initial body positions relative to the head - from the right side
             for (int i = 0; i < playerSnake->body_length; ++i) {
                 playerSnake->body[i].x = playerSnake->head.x + (i + 1) * SNAKE_SEGMENT_DIMENSION;
                 playerSnake->body[i].y = playerSnake->head.y; // Same Y-coordinate as the head
@@ -230,16 +233,20 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
 
 void *inputHandler(void *arg) {
     char input[10];
-    
+    // Temporary Dashboard
+    printGameStatus();
+
     while (1) {
         fgets(input, sizeof(input), stdin);
         if (strcmp(input, "quit\n") == 0) {
+            system("clear");
             printf("Server shutting down...\n");
             close(serverSocket);
             exit(EXIT_SUCCESS);
         }
         if (strcmp(input, "start\n") == 0) {
             startSignal = 1;
+            system("clear");
             printf("Game has Started!\n");
         }
         
@@ -300,4 +307,36 @@ void broadcastSnakes(int senderID, Snake* playerSnake) {
         }
     }
     pthread_mutex_unlock(&mutex);
+}
+
+// Temporary Functions //
+void printGameStatus(){
+    int playersAlive = 0;
+    for(int i = 0; i < 3; i++){ if(players[i].playerSnake.isAlive) playersAlive++; }
+    
+    system("clear");
+    printf("+---------------------------------+\n");
+    printf("| S N A K E  G A M E  S E R V E R |\n");
+    printf("+---------------------------------+\n");
+    printf("| type start to Start the Game!   |\n");
+    printf("| type quit to Quit the Server!   |\n");
+    printf("+---------------------------------+\n");
+    printf("| Player 1: %s         |\n", checkStatus(players[0], playersAlive));
+    printf("| Player 2: %s         |\n", checkStatus(players[1], playersAlive));
+    printf("| Player 3: %s         |\n", checkStatus(players[2], playersAlive));
+    printf("| Player 4: %s         |\n", checkStatus(players[3], playersAlive));
+    printf("+---------------------------------+\n");
+}
+
+char* checkStatus(PlayerData currentPlayer, int playersAlive){
+    if(!currentPlayer.active){
+        return "Connecting...";
+    }else if(currentPlayer.playerSnake.isAlive){
+        return "Alive        ";
+    }else if(!currentPlayer.playerSnake.isAlive){
+        return "Dead         ";
+    }else if(currentPlayer.playerSnake.isAlive && playersAlive == 1){
+        return "Winner       ";
+    }
+    return "Unknown      ";
 }
