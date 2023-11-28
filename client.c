@@ -72,7 +72,7 @@ void showDeathMessage();
 void showWaitingMessage();
 void showWinMessage();
 
-int main() {
+int main(){
     int numOtherPlayers = MAX_CLIENTS - 1;
     int quit = 0;
     Movement playerDirection;
@@ -87,7 +87,7 @@ int main() {
 
     // Create a thread for receiving data from the server
     pthread_t recvThread;
-    if (pthread_create(&recvThread, NULL, receiveThread, &clientSocket) != 0) {
+    if(pthread_create(&recvThread, NULL, receiveThread, &clientSocket) != 0) {
         perror("Error creating receive thread");
         close(clientSocket);
         exit(EXIT_FAILURE);
@@ -95,7 +95,7 @@ int main() {
 
     // Waiting for Game Start
     while(1){
-        if (startSignal == 1) {
+        if(startSignal == 1) {
             break;
         }
         
@@ -135,13 +135,13 @@ int main() {
 
 int initSDL(){
     // Initialize SDL and then Creates SDL window and renderer
-    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+    if(SDL_Init(SDL_INIT_VIDEO) < 0) {
         printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return -1;
     }
     
     window = SDL_CreateWindow("Snake Game", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
-    if (window == NULL) {
+    if(window == NULL) {
         printf("Window could not be created! SDL_Error: %s\n", SDL_GetError());
         return -1;
     }
@@ -156,13 +156,13 @@ int initSDL(){
 }
 
 void initSDL_ttf(){
-    if (TTF_Init() == -1) {
+    if(TTF_Init() == -1) {
         fprintf(stderr, "TTF_Init error: %s\n", TTF_GetError());
         return;
     }
 
     font = TTF_OpenFont("fonts/LiberationSans-Regular.ttf", 24); // Try "LiberationSans-Regular.ttf" if "DejaVuSans" is not available
-    if (font == NULL) {
+    if(font == NULL) {
         fprintf(stderr, "Error loading font: %s\n", TTF_GetError());
         TTF_Quit();
         return;
@@ -170,7 +170,7 @@ void initSDL_ttf(){
 
     SDL_Color deathTextColor = { 255, 0, 0 };
     deathTextSurface = TTF_RenderText_Solid(font, "You Died!", deathTextColor);
-    if (deathTextSurface == NULL) {
+    if(deathTextSurface == NULL) {
         fprintf(stderr, "Error creating text surface: %s\n", TTF_GetError());
         TTF_CloseFont(font);
         TTF_Quit();
@@ -179,7 +179,7 @@ void initSDL_ttf(){
 
     
     deathTextTexture = SDL_CreateTextureFromSurface(renderer, deathTextSurface);
-    if (deathTextTexture == NULL) {
+    if(deathTextTexture == NULL) {
         fprintf(stderr, "Error creating text texture: %s\n", SDL_GetError());
         SDL_FreeSurface(deathTextSurface);
         TTF_CloseFont(font);
@@ -189,7 +189,7 @@ void initSDL_ttf(){
 
     SDL_Color waitingTextColor = { 0, 0, 255 };
     waitingTextSurface = TTF_RenderText_Solid(font, "Waiting for Server...", waitingTextColor);
-    if (waitingTextSurface == NULL) {
+    if(waitingTextSurface == NULL) {
         fprintf(stderr, "Error creating text surface: %s\n", TTF_GetError());
         TTF_CloseFont(font);
         TTF_Quit();
@@ -197,7 +197,7 @@ void initSDL_ttf(){
     }
 
     waitingTextTexture = SDL_CreateTextureFromSurface(renderer, waitingTextSurface);
-    if (waitingTextTexture == NULL) {
+    if(waitingTextTexture == NULL) {
         fprintf(stderr, "Error creating text texture: %s\n", SDL_GetError());
         SDL_FreeSurface(waitingTextSurface);
         TTF_CloseFont(font);
@@ -207,7 +207,7 @@ void initSDL_ttf(){
 
     SDL_Color winTextColor = { 0, 255, 0 };
     winTextSurface = TTF_RenderText_Solid(font, "You Win!", winTextColor);
-    if (winTextSurface == NULL) {
+    if(winTextSurface == NULL) {
         fprintf(stderr, "Error creating text surface: %s\n", TTF_GetError());
         TTF_CloseFont(font);
         TTF_Quit();
@@ -215,7 +215,7 @@ void initSDL_ttf(){
     }
 
     winTextTexture = SDL_CreateTextureFromSurface(renderer, winTextSurface);
-    if (waitingTextTexture == NULL) {
+    if(waitingTextTexture == NULL) {
         fprintf(stderr, "Error creating text texture: %s\n", SDL_GetError());
         SDL_FreeSurface(winTextSurface);
         TTF_CloseFont(font);
@@ -230,23 +230,23 @@ void renderAssets(SDL_Renderer* renderer, Snake* playerSnake, Snake* otherPlayer
     SDL_RenderClear(renderer); // Clear the screen
 
     // Render the player's snake
-    if (playerSnake->isAlive) {
+    if(playerSnake->isAlive) {
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_Rect headRect = { playerSnake->head.x, playerSnake->head.y, SNAKE_SEGMENT_DIMENSION, SNAKE_SEGMENT_DIMENSION };
         SDL_RenderFillRect(renderer, &headRect);
-        for (int i = 0; i < playerSnake->body_length; ++i) {
+        for(int i = 0; i < playerSnake->body_length; ++i) {
             SDL_Rect bodyRect = { playerSnake->body[i].x, playerSnake->body[i].y, SNAKE_SEGMENT_DIMENSION, SNAKE_SEGMENT_DIMENSION };
             SDL_RenderFillRect(renderer, &bodyRect);
         }
     }
     // Render other players' snakes
-    for (int i = 0; i < numOtherPlayers; ++i) {
+    for(int i = 0; i < numOtherPlayers; ++i) {
         if(otherPlayers[i].isAlive){
-                if (otherPlayers[i].head.x != -1 && otherPlayers[i].head.y != -1 && otherPlayers[i].body_length > 0) {
+                if(otherPlayers[i].head.x != -1 && otherPlayers[i].head.y != -1 && otherPlayers[i].body_length > 0) {
                 SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); 
                 SDL_Rect otherHeadRect = { otherPlayers[i].head.x, otherPlayers[i].head.y, SNAKE_SEGMENT_DIMENSION, SNAKE_SEGMENT_DIMENSION };
                 SDL_RenderFillRect(renderer, &otherHeadRect);
-                for (int j = 0; j < otherPlayers[i].body_length; ++j) {
+                for(int j = 0; j < otherPlayers[i].body_length; ++j) {
                     SDL_Rect otherBodyRect = { otherPlayers[i].body[j].x, otherPlayers[i].body[j].y, SNAKE_SEGMENT_DIMENSION, SNAKE_SEGMENT_DIMENSION };
                     SDL_RenderFillRect(renderer, &otherBodyRect);
                 }
@@ -279,13 +279,13 @@ void *receiveThread(void *arg) {
         recv(clientSocket, &receivedPlayerID, sizeof(int), 0);
         recv(clientSocket, &receivedSnake, sizeof(Snake), 0);
 
-        if (receivedPlayerID != playerID){
+        if(receivedPlayerID != playerID){
             pthread_mutex_lock(&mutex);
             otherPlayers[receivedPlayerID - 1].head = receivedSnake.head;
             otherPlayers[receivedPlayerID - 1].body_length = receivedSnake.body_length;
             otherPlayers[receivedPlayerID - 1].isAlive = receivedSnake.isAlive;
 
-            if (otherPlayers[receivedPlayerID - 1].body_length == receivedSnake.body_length) {
+            if(otherPlayers[receivedPlayerID - 1].body_length == receivedSnake.body_length) {
                 memcpy(otherPlayers[receivedPlayerID - 1].body, receivedSnake.body, receivedSnake.body_length * sizeof(SnakeSegment));
             }else{
                 for(int i = 0; i < otherPlayers[receivedPlayerID - 1].body_length; ++i){
@@ -295,7 +295,7 @@ void *receiveThread(void *arg) {
                 }
             }
             pthread_mutex_unlock(&mutex);
-        } else if (receivedSnake.head.x == -1 && receivedSnake.head.y == -1) {
+        } else if(receivedSnake.head.x == -1 && receivedSnake.head.y == -1) {
             // Player disconnect handling
             otherPlayers[receivedPlayerID - 1].head.x = -1;
             otherPlayers[receivedPlayerID - 1].head.y = -1;
@@ -307,21 +307,21 @@ void *receiveThread(void *arg) {
 
 void moveSnake(Snake *snake, Movement movement) {
     // Move the body segments
-    for (int i = snake->body_length - 1; i > 0; --i) {
+    for(int i = snake->body_length - 1; i > 0; --i) {
         snake->body[i] = snake->body[i - 1]; // Move each body segment to the position of the segment before it
     }
 
     // Move the head
     SnakeSegment previousHead = snake->head; // Store the current head position
-    snake->head.x += movement.deltaY;
-    snake->head.y += movement.deltaX;
+    snake->head.x += movement.deltaX;
+    snake->head.y += movement.deltaY;
 
-    if (snake->head.x < MIN_X || snake->head.x > MAX_X || snake->head.y < MIN_Y || snake->head.y > MAX_Y) {
+    if(snake->head.x < MIN_X || snake->head.x > MAX_X || snake->head.y < MIN_Y || snake->head.y > MAX_Y) {
         snake->isAlive = 0;
     }
 
-    if (snake->isAlive) {
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
+    if(snake->isAlive) {
+        for(int i = 0; i < MAX_CLIENTS; ++i) {
             // Check if Snake collides with itself
             for(int j = 0; j < snake->body_length; ++j){
                 if(snake->head.x == snake->body[j].x &&
@@ -332,7 +332,7 @@ void moveSnake(Snake *snake, Movement movement) {
             }
 
             // Check collision with other snakes' heads
-            if (otherPlayers[i].isAlive &&
+            if(otherPlayers[i].isAlive &&
                 snake->head.x == otherPlayers[i].head.x &&
                 snake->head.y == otherPlayers[i].head.y) {
                 snake->isAlive = 0;
@@ -340,8 +340,8 @@ void moveSnake(Snake *snake, Movement movement) {
             }
 
             // Check collision with other snakes' bodies
-            for (int j = 0; j < otherPlayers[i].body_length; ++j) {
-                if (snake->head.x == otherPlayers[i].body[j].x &&
+            for(int j = 0; j < otherPlayers[i].body_length; ++j) {
+                if(snake->head.x == otherPlayers[i].body[j].x &&
                     snake->head.y == otherPlayers[i].body[j].y &&
                     otherPlayers[i].isAlive) {
                     snake->isAlive = 0;
@@ -349,7 +349,7 @@ void moveSnake(Snake *snake, Movement movement) {
                 }
             }
 
-            if (!snake->isAlive) {
+            if(!snake->isAlive) {
                 break; // No need to check further if dead
             }
         }
@@ -361,32 +361,32 @@ void moveSnake(Snake *snake, Movement movement) {
 
 void handlePlayerInput(SDL_Event *event, Movement *playerDirection, int *quit, Movement *lastValidDirection, Snake *playerSnake) {
     while (SDL_PollEvent(event) != 0) {
-        if (event->type == SDL_QUIT) {
+        if(event->type == SDL_QUIT) {
             playerSnake->isAlive = 0;
             *quit = 1;
-        } else if (event->type == SDL_KEYDOWN) {
+        } else if(event->type == SDL_KEYDOWN) {
             Movement newDirection = *playerDirection;
             switch (event->key.keysym.sym) {
                 case SDLK_UP:
-                    newDirection.deltaX = -SNAKE_SEGMENT_DIMENSION;
-                    newDirection.deltaY = 0;
-                    break;
-                case SDLK_DOWN:
-                    newDirection.deltaX = SNAKE_SEGMENT_DIMENSION;
-                    newDirection.deltaY = 0;
-                    break;
-                case SDLK_LEFT:
                     newDirection.deltaX = 0;
                     newDirection.deltaY = -SNAKE_SEGMENT_DIMENSION;
                     break;
-                case SDLK_RIGHT:
+                case SDLK_DOWN:
                     newDirection.deltaX = 0;
                     newDirection.deltaY = SNAKE_SEGMENT_DIMENSION;
+                    break;
+                case SDLK_LEFT:
+                    newDirection.deltaX = -SNAKE_SEGMENT_DIMENSION;
+                    newDirection.deltaY = 0;
+                    break;
+                case SDLK_RIGHT:
+                    newDirection.deltaX = SNAKE_SEGMENT_DIMENSION;
+                    newDirection.deltaY = 0;
                     break;
             }
             
             // Check if the new direction is opposite to the last valid direction
-            if (newDirection.deltaX != -lastValidDirection->deltaX || newDirection.deltaY != -lastValidDirection->deltaY) {
+            if(newDirection.deltaX != -lastValidDirection->deltaX || newDirection.deltaY != -lastValidDirection->deltaY) {
                 // Update the player direction and last valid direction
                 *playerDirection = newDirection;
                 *lastValidDirection = *playerDirection;
@@ -404,7 +404,7 @@ void initPlayerSnake(Snake *playerSnake, Movement *playerDirection){
 void initConnection(){
     // Create a client socket
     clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-    if (clientSocket == -1) {
+    if(clientSocket == -1) {
         perror("Error creating client socket");
         exit(EXIT_FAILURE);
     }
@@ -413,10 +413,10 @@ void initConnection(){
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(PORT);
-    inet_pton(AF_INET, "172.29.5.228", &serverAddress.sin_addr);
+    inet_pton(AF_INET, "192.168.68.109", &serverAddress.sin_addr);
 
     // Connect to the server
-    if (connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
+    if(connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
         perror("Error connecting to server");
         close(clientSocket);
         exit(EXIT_FAILURE);
@@ -424,7 +424,7 @@ void initConnection(){
 }
 
 void showDeathMessage() {
-    if (deathTextTexture != NULL) {
+    if(deathTextTexture != NULL) {
         int textWidth = deathTextSurface->w;
         int textHeight = deathTextSurface->h;
 
@@ -438,7 +438,7 @@ void showDeathMessage() {
 }
 
 void showWaitingMessage() {
-    if (waitingTextTexture != NULL) {
+    if(waitingTextTexture != NULL) {
         int textWidth = waitingTextSurface->w;
         int textHeight = waitingTextSurface->h;
 
@@ -452,7 +452,7 @@ void showWaitingMessage() {
 }
 
 void showWinMessage() {
-    if (waitingTextTexture != NULL) {
+    if(waitingTextTexture != NULL) {
         int textWidth = winTextSurface->w;
         int textHeight = winTextSurface->h;
 
@@ -466,14 +466,14 @@ void showWinMessage() {
 }
 
 void checkState(Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers){
-    if (startSignal == 0) return;
-    if (win == 1) return;
-    if (!playerSnake->isAlive) return;
+    if(startSignal == 0) return;
+    if(win == 1) return;
+    if(!playerSnake->isAlive) return;
     int aliveOtherPlayers = 0;
 
     // Check other players' alive status
-    for (int i = 0; i < numOtherPlayers; ++i) {
-        if (otherPlayers[i].isAlive) {
+    for(int i = 0; i < numOtherPlayers; ++i) {
+        if(otherPlayers[i].isAlive) {
             aliveOtherPlayers++;
             // If at least one other player is alive, the game continues
             break;
@@ -481,7 +481,7 @@ void checkState(Snake* playerSnake, Snake* otherPlayers, int numOtherPlayers){
     }
 
     // If no other player is alive, declare the current player as the winner
-    if (aliveOtherPlayers == 0) {
+    if(aliveOtherPlayers == 0) {
         win = 1;
     }
 }

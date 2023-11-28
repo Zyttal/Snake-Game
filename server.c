@@ -53,6 +53,7 @@ int serverSocket;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 PlayerData players[MAX_CLIENTS];
 int startSignal = 0;
+int winFlag = 0;
 
 void startServer();
 void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMovement);
@@ -154,12 +155,29 @@ void *playerHandler(void *arg) {
             pthread_mutex_lock(&mutex);
             players[playerID - 1].active = 0;
             pthread_mutex_unlock(&mutex);
+            deathFlag = 0;
             break; // Exit the loop on disconnection
         }
 
-        if (!(receivedSnake.isAlive) && deathFlag == 0){
-            printGameStatus();
-            deathFlag = 1;
+        if (!(receivedSnake.isAlive) && winFlag == 0) {
+            pthread_mutex_lock(&mutex);
+            players[playerID - 1].playerSnake = receivedSnake;
+            pthread_mutex_unlock(&mutex);
+
+            int playersAlive = 0;
+            for (int i = 0; i < 3; i++) {
+                if (players[i].playerSnake.isAlive) playersAlive++;
+            }
+
+            if (playersAlive == 1) {
+                printGameStatus();
+                winFlag = 1;
+            }
+
+            if (deathFlag == 0) {
+                printGameStatus();
+                deathFlag = 1;
+            }
         }
 
         // Update the server's representation of the client's snake
@@ -183,8 +201,8 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
         case 1: // Top-left
             playerSnake->head.x = SNAKE_SEGMENT_DIMENSION;
             playerSnake->head.y = 0;
-            startingMovement->deltaX = 0;
-            startingMovement->deltaY = SNAKE_SEGMENT_DIMENSION;
+            startingMovement->deltaX = SNAKE_SEGMENT_DIMENSION;
+            startingMovement->deltaY = 0;
 
             // Adjust the initial body positions relative to the head - from the left side
             for (int i = 0; i < playerSnake->body_length; ++i) {
@@ -195,8 +213,8 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
         case 2: // Top-right
             playerSnake->head.x  = WINDOW_WIDTH - SNAKE_SEGMENT_DIMENSION;
             playerSnake->head.y  = 0;
-            startingMovement->deltaX = 0;
-            startingMovement->deltaY = -SNAKE_SEGMENT_DIMENSION;
+            startingMovement->deltaX = -SNAKE_SEGMENT_DIMENSION;
+            startingMovement->deltaY = 0;
 
             // Adjust the initial body positions relative to the head - from the right side
             for (int i = 0; i < playerSnake->body_length; ++i) {
@@ -207,8 +225,8 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
         case 3: // Bottom-left
             playerSnake->head.x  = 0;
             playerSnake->head.y  = WINDOW_HEIGHT - SNAKE_SEGMENT_DIMENSION;
-            startingMovement->deltaX = 0;
-            startingMovement->deltaY = SNAKE_SEGMENT_DIMENSION;
+            startingMovement->deltaX = SNAKE_SEGMENT_DIMENSION;
+            startingMovement->deltaY = 0;
 
             // Adjust the initial body positions relative to the head - from the left side
             for (int i = 0; i < playerSnake->body_length; ++i) {
@@ -219,8 +237,8 @@ void initPlayer(PlayerInfo *playerInfo, Snake *playerSnake, Movement *startingMo
         case 4: // Bottom-right
             playerSnake->head.x = WINDOW_WIDTH - SNAKE_SEGMENT_DIMENSION;
             playerSnake->head.y = WINDOW_HEIGHT - SNAKE_SEGMENT_DIMENSION;
-            startingMovement->deltaX = 0;
-            startingMovement->deltaY = -SNAKE_SEGMENT_DIMENSION;
+            startingMovement->deltaX = -SNAKE_SEGMENT_DIMENSION;
+            startingMovement->deltaY = 0;
 
             // Adjust the initial body positions relative to the head - from the right side
             for (int i = 0; i < playerSnake->body_length; ++i) {
@@ -331,11 +349,11 @@ void printGameStatus(){
 char* checkStatus(PlayerData currentPlayer, int playersAlive){
     if(!currentPlayer.active){
         return "Connecting...";
-    }else if(currentPlayer.playerSnake.isAlive){
-        return "Alive        ";
-    }else if(!currentPlayer.playerSnake.isAlive){
+    } else if(!currentPlayer.playerSnake.isAlive){
         return "Dead         ";
-    }else if(currentPlayer.playerSnake.isAlive && playersAlive == 1){
+    } else if(currentPlayer.playerSnake.isAlive && startSignal == 0){
+        return "Alive        ";
+    } else if(playersAlive == 1){
         return "Winner       ";
     }
     return "Unknown      ";
