@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <pthread.h>
+#include <netinet/tcp.h>
 
 #define PORT 58501
 #define WINDOW_WIDTH 1200
@@ -280,12 +281,20 @@ void startServer(){
         exit(EXIT_FAILURE);
     }
 
+    // Set TCP_NODELAY option which disables Nagle's Algorithm
+    int flag = 1;
+    int result = setsockopt(serverSocket, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+    if (result < 0) {
+        perror("Couldn't setsockopt(TCP_NODELAY)");
+        exit(EXIT_FAILURE);
+    }
+
     // Set up the server address struct
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_addr.s_addr = INADDR_ANY;
     serverAddress.sin_port = htons(PORT);
-
+    
     // Bind the server socket
     if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {
         perror("Error binding server socket");
@@ -353,7 +362,7 @@ char* checkStatus(PlayerData currentPlayer, int playersAlive){
         return "Dead         ";
     } else if(currentPlayer.playerSnake.isAlive && startSignal == 0){
         return "Alive        ";
-    } else if(playersAlive == 1){
+    } else if(playersAlive == 1 && currentPlayer.playerSnake.isAlive){
         return "Winner       ";
     }
     return "Unknown      ";
