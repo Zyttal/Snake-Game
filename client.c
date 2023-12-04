@@ -410,19 +410,19 @@ void initConnection(){
         exit(EXIT_FAILURE);
     }
 
-    // Set TCP_NODELAY option
-    int flag = 1;
-    int result = setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
-    if (result < 0) {
-        perror("Couldn't setsockopt(TCP_NODELAY)");
-        exit(EXIT_FAILURE);
-    }
+    // // Set TCP_NODELAY option
+    // int flag = 1;
+    // int result = setsockopt(clientSocket, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
+    // if (result < 0) {
+    //     perror("Couldn't setsockopt(TCP_NODELAY)");
+    //     exit(EXIT_FAILURE);
+    // }
 
     // Set up the server address struct
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(PORT);
-    inet_pton(AF_INET, "192.168.68.103", &serverAddress.sin_addr);
+    inet_pton(AF_INET, "172.29.5.228", &serverAddress.sin_addr);
 
     // Connect to the server
     if(connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) == -1) {

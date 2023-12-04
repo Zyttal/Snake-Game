@@ -281,14 +281,6 @@ void startServer(){
         exit(EXIT_FAILURE);
     }
 
-    // Set TCP_NODELAY option which disables Nagle's Algorithm
-    int flag = 1;
-    int result = setsockopt(serverSocket, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
-    if (result < 0) {
-        perror("Couldn't setsockopt(TCP_NODELAY)");
-        exit(EXIT_FAILURE);
-    }
-
     // Set up the server address struct
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
